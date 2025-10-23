@@ -62,9 +62,6 @@ Set these in your Vercel dashboard (Settings → Environment Variables):
 - **Node.js**: ✅ v20 specified (`.nvmrc`)
 - **Environment**: ✅ Template ready (`env.example`)
 
-### 🔗 Live Deployment
-- **Vercel Project**: https://vercel.com/saurabhbhatiaodesks-projects/fliptrade-admin-suraj
-- **GitHub Repository**: https://github.com/SaurabhBhatiaodesk/Fliptrade-Admin-suraj.git
 
 ### 📋 Deployment Checklist
 - [x] Build configuration fixed

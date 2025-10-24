@@ -12,6 +12,7 @@ import { useAdmin, Staff, UserRole, UserPermissions, ModulePermission } from './
 import { toast } from 'sonner';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import ApiService from '../services/api';
+import { env } from 'process';
 
 const defaultPermissions: Record<UserRole, UserPermissions> = {
   'Super Admin': {
@@ -52,6 +53,9 @@ const defaultPermissions: Record<UserRole, UserPermissions> = {
 };
 
 export function AddStaffPage() {
+  const NodeServer = "http://localhost:8787";
+  
+  
   const { setCurrentPage, staff, setStaff, addActivity } = useAdmin();
   const [formData, setFormData] = useState({
     name: '',
@@ -95,6 +99,9 @@ export function AddStaffPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setFormData(prev => ({ ...prev, sendEmail: true }));
+    console.log("Sending mails test emaisls",FormData);
+    
 
     try {
       if (isSupabaseConfigured) {
@@ -161,14 +168,38 @@ export function AddStaffPage() {
 
         setStaff([...staff, newStaff]);
 
-        if (formData.sendEmail) {
-          const emailMessage = formData.emailMessage.replace('<temporary-password>', formData.temporaryPassword);
-          toast.success(`Staff member added successfully! Email notification would be sent to ${formData.email} with temporary password.`);
-          console.log('Email message:', emailMessage);
+        // if (formData.sendEmail) {
+        //   const emailMessage = formData.emailMessage.replace('<temporary-password>', formData.temporaryPassword);
+        //   toast.success(`Staff member added successfully! Email notification would be sent to ${formData.email} with temporary password.`);
+        //   console.log('Email message:', emailMessage);
+        // } else {
+        //   toast.success('Staff member added successfully!');
+        // }
+        
+        const shouldSendEmail = true;
+        if (shouldSendEmail) {
+          console.log("tes the mails sending")
+          try {
+            const resp = await fetch(`${NodeServer}/api/send-welcome-email`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                to: formData.email,
+                name: formData.name,
+                temporaryPassword: formData.temporaryPassword,
+              }),
+            });
+        
+            if (!resp.ok) throw new Error('Email API failed');
+            toast.success(`Welcome email sent to ${formData.email}`);
+          } catch (err) {
+            console.error(err);
+            toast.error('Staff created, but sending email failed. Please try again.');
+          }
         } else {
           toast.success('Staff member added successfully!');
         }
-        
+
         // Add activity
         await addActivity(
           'Staff member created',
@@ -189,13 +220,17 @@ export function AddStaffPage() {
 
       setStaff([...staff, newStaff]);
       
-      if (formData.sendEmail) {
-          const emailMessage = formData.emailMessage.replace('<temporary-password>', formData.temporaryPassword);
-          toast.success(`Staff member added successfully! Email notification would be sent to ${formData.email} with temporary password.`);
-          console.log('Email message:', emailMessage);
-      } else {
-        toast.success('Staff member added successfully!');
-      }
+      // if (formData.sendEmail) {
+      //     const emailMessage = formData.emailMessage.replace('<temporary-password>', formData.temporaryPassword);
+      //     toast.success(`Staff member added successfully! Email notification would be sent to ${formData.email} with temporary password.`);
+      //     console.log('Email message:', emailMessage);
+      // } else {
+      //   toast.success('Staff member added successfully!');
+      // }
+
+
+
+ 
       }
       
       setCurrentPage('staff-management');
@@ -376,45 +411,7 @@ export function AddStaffPage() {
         </Card>
       </div>
 
-      {/* Email Notification */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center">
-            <Mail className="w-5 h-5 mr-2 text-[#6a40ec]" />
-            Email Notification
-          </CardTitle>
-          <CardDescription>
-            Configure the welcome email for the new staff member
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center space-x-2">
-            <Switch
-              id="send-email"
-              checked={formData.sendEmail}
-              onCheckedChange={(checked) => setFormData(prev => ({ ...prev, sendEmail: checked }))}
-            />
-            <Label htmlFor="send-email">Send welcome email to new staff member (Not implemented)</Label>
-          </div>
-
-          {formData.sendEmail && (
-            <div>
-              <Label htmlFor="email-message">Welcome Message</Label>
-              <Textarea
-                id="email-message"
-                value={formData.emailMessage}
-                onChange={(e) => setFormData(prev => ({ ...prev, emailMessage: e.target.value }))}
-                placeholder="Enter a welcome message..."
-                className="mt-1 min-h-[100px]"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                This message will be included in the welcome email along with login credentials.
-              </p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
+   
       {/* Action Buttons */}
       <div className="flex justify-end space-x-4">
         <Button
@@ -426,6 +423,7 @@ export function AddStaffPage() {
         <Button
           onClick={handleSubmit}
           disabled={!isFormValid || isLoading}
+          
           className="bg-[#6a40ec] hover:bg-[#5a2fd9] text-white"
         >
           {isLoading ? 'Adding Staff Member...' : 'Add Staff Member'}

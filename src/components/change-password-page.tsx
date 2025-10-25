@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Eye, EyeOff, CheckCircle } from 'lucide-react';
 import { useAdmin } from './admin-context';
 import Group1 from '../imports/Group1-47-1099';
-
+import { toast } from "sonner";
 export function ChangePasswordPage() {
   const { setCurrentPage } = useAdmin();
   const [password, setPassword] = useState('');
@@ -18,7 +18,7 @@ export function ChangePasswordPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (password !== confirmPassword) {
-      alert('Passwords do not match');
+      toast.error('Passwords do not match');
       return;
     }
     
@@ -28,10 +28,60 @@ export function ChangePasswordPage() {
     setTimeout(() => {
       setCurrentPage('login');
       setIsLoading(false);
-      alert('Password changed successfully! Please log in with your new password.');
+      toast.success('Password changed successfully! Please log in with your new password.');
     }, 1000);
   };
+  const email=localStorage.getItem("email")
 
+  async function handleResetPassword(email, password, confirmPassword) {
+    const Server = import.meta.env.VITE_NODE_SERVER;
+  
+    if (!Server) {
+      console.error("[handleResetPassword] Missing VITE_NODE_SERVER env variable.");
+      toast.error("Server configuration missing.");
+      return { error: "Server not configured." };
+    }
+  
+    if (!email || !password || !confirmPassword) {
+      toast.error("All fields are required.");
+      return { error: "Missing required fields." };
+    }
+  
+    if (password !== confirmPassword) {
+      toast.error("Passwords do not match.");
+      return { error: "Passwords do not match." };
+    }
+  
+    try {
+      console.log("[handleResetPassword] 🔁 Sending request to:", `${Server}/v1/reset-password`, {
+        email,
+        password,
+        confirmPassword,
+      });
+  
+      const response = await fetch(`${Server}/v1/reset-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, confirmPassword }),
+      });
+  
+      const data = await response.json();
+  
+      if (!response.ok) {
+        console.warn("[handleResetPassword]  Failed:", data);
+        toast.error(data?.error || "Password reset failed.");
+        return { error: data?.error || "Password reset failed." };
+      }
+  
+      console.log("[handleResetPassword]  Success:", data);
+      toast.success(data?.message || "Password reset successful!");
+      return data;
+    } catch (error) {
+      console.error("[handleResetPassword]  Network Error:", error);
+      toast.error("Network error while resetting password.");
+      return { error: "Network error while resetting password." };
+    }
+  }
   const passwordsMatch = password && confirmPassword && password === confirmPassword;
   const isFormValid = password.length >= 8 && passwordsMatch;
 
@@ -124,6 +174,10 @@ export function ChangePasswordPage() {
                 type="submit"
                 className="w-full bg-[#6a40ec] hover:bg-[#5a2fd9] text-white border border-[#6a40ec]"
                 disabled={isLoading || !isFormValid}
+                onClick={()=>{handleResetPassword(email,password,confirmPassword)
+                  console.log("hit2");}
+                  
+                }
               >
                 {isLoading ? 'Updating...' : 'Change Password'}
               </Button>

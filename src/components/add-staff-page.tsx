@@ -147,9 +147,9 @@ export function AddStaffPage() {
         console.log('🔍 Permissions to insert:', permissionsToInsert);
         try {
           await ApiService.createStaffPermissions(permissionsToInsert);
-          console.log('✅ Staff permissions created successfully');
+          console.log(' Staff permissions created successfully');
         } catch (permissionError) {
-          console.error('❌ Error creating staff permissions:', permissionError);
+          console.error(' Error creating staff permissions:', permissionError);
           // If permissions fail, we should still show success for staff creation
           // but log the permission error
           toast.error('Staff created but permissions setup failed. Please edit permissions manually.');

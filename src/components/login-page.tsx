@@ -220,7 +220,9 @@ export function LoginPage() {
               <div className="flex justify-end">
                 <button
                   type="button"
-                  onClick={() => setCurrentPage('forgot-password')}
+                  onClick={() =>{ setCurrentPage('forgot-password')
+                                       
+                  }}
                   className="text-sm text-[#6a40ec] hover:text-[#5a2fd9] transition-colors disabled:opacity-50"
                   disabled={isLoading}
                 >

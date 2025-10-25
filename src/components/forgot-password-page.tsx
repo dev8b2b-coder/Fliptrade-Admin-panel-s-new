@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { ArrowLeft, Mail } from 'lucide-react';
 import { useAdmin } from './admin-context';
 import Group1 from '../imports/Group1-47-1099';
+import { toast } from 'sonner';
 
 export function ForgotPasswordPage() {
   const { setCurrentPage, setOtpData } = useAdmin();
@@ -17,13 +18,77 @@ export function ForgotPasswordPage() {
     e.preventDefault();
     setIsLoading(true);
     
+    
     // Simulate API call
     setTimeout(() => {
       setOtpData({ email, purpose: 'forgot-password' });
-      setIsSubmitted(true);
+      setIsSubmitted(false);
       setIsLoading(false);
     }, 1000);
   };
+
+
+  /**
+ * Request a password-reset OTP for the given email.
+ */
+   async function handleReset(email = null) {
+    
+    const Server = import.meta.env.VITE_NODE_SERVER;
+  
+    if (!email) {
+      
+      console.warn("[handleReset] No email provided.");
+      toast.error("Please enter your email.");
+      return { error: "Email is required." };
+    }
+  
+    if (!Server) {
+      console.error("[handleReset] Missing VITE_NODE_SERVER env variable.");
+      toast.error("Server configuration missing.");
+      return { error: "Server URL not configured." };
+    }
+  
+    try {
+      localStorage.setItem("email",email)
+      console.log("[handleReset]  Sending OTP request:", {
+        endpoint: `${Server}/v1/otp/request`,
+        email,
+      });
+  
+      const response = await fetch(`${Server}/v1/otp/request`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+  
+      console.log("[handleReset]  Raw response status:", response.status);
+  
+      const data = await response.json();
+  
+      if (!response.ok) {
+        console.warn("[handleReset]  Server responded with error:", data);
+        toast.error(data?.error || "Failed to send OTP. Please try again.");
+        return { error: data?.error || "Failed to send OTP." };
+      }
+  
+      console.log("[handleReset]  OTP request successful:", data);
+      localStorage.setItem("otp_expires_at", String(Date.now() + 60_000));
+     
+      toast.success(data?.message || "OTP sent successfully!");
+
+      
+      
+
+      setCurrentPage('otp-verification');
+      return data;
+    } catch (error) {
+      console.error("[handleReset]  Request failed:", error);
+      toast.error("Network error while requesting OTP.");
+      return { error: "Network error while requesting OTP." };
+    }
+  }
+
+
 
   const handleContinue = () => {
     setCurrentPage('otp-verification');
@@ -67,6 +132,10 @@ export function ForgotPasswordPage() {
                   type="submit"
                   className="w-full bg-[#6a40ec] hover:bg-[#5a2fd9] text-white border border-[#6a40ec]"
                   disabled={isLoading}
+                  onClick={() =>{ handleReset(email)
+                    console.log("handleReset() Clicked");
+                    
+                  }}
                 >
                   {isLoading ? 'Sending...' : 'Send Reset Link'}
                 </Button>

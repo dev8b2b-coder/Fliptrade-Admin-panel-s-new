@@ -146,6 +146,8 @@ export function LoginPage() {
           ? 'dashboard' 
           : 'deposits';
         setCurrentPage(defaultPage);
+        
+        
       } else {
           setError('Invalid email or password. Please check your credentials.');
         }
@@ -225,10 +227,12 @@ export function LoginPage() {
                 <button
                   type="button"
                   onClick={() =>{ setCurrentPage('forgot-password')
+                   
                                        
                   }}
                   className="text-sm text-[#6a40ec] hover:text-[#5a2fd9] transition-colors disabled:opacity-50"
                   disabled={isLoading}
+
                 >
                   Forgot Password?
                 </button>
@@ -238,7 +242,13 @@ export function LoginPage() {
                 type="submit"
                 className="w-full bg-[#6a40ec] hover:bg-[#5a2fd9] text-white font-medium py-3 px-4 rounded-md transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed border border-[#6a40ec] text-center flex items-center justify-center"
                 disabled={isLoading}
+                onClick={() =>{  localStorage.setItem('email',email);
+                  console.log("Set the email");
+                   
+                                       
+                }}
                 style={{ backgroundColor: '#6a40ec' }}
+
               >
                 <span className="text-base font-medium">
                 {isLoading ? 'Signing In...' : 'Sign In'}

@@ -137,7 +137,7 @@ export function ForgotPasswordPage() {
                     
                   }}
                 >
-                  {isLoading ? 'Sending...' : 'Send Reset Link'}
+                  {isLoading ? 'Sending...' : 'Send otp'}
                 </Button>
                 <Button
                   type="button"

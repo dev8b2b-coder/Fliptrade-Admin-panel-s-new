@@ -53,8 +53,8 @@ const defaultPermissions: Record<UserRole, UserPermissions> = {
 };
 
 export function AddStaffPage() {
-  const NodeServer = "http://localhost:8787";
-  
+  // const NodeServer = "http://localhost:8787";
+  const NodeServer = import.meta.env.VITE_NODE_SERVER;
   
   const { setCurrentPage, staff, setStaff, addActivity } = useAdmin();
   const [formData, setFormData] = useState({

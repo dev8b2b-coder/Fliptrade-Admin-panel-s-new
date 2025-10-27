@@ -143,6 +143,8 @@ export class ApiService {
   }
 
   static async updateStaff(id: string, updates: Partial<Staff>): Promise<Staff> {
+    console.log('supabase',supabase);
+    
     console.log('API: Updating staff:', id, updates);
     console.log('API: Updates object:', JSON.stringify(updates, null, 2));
     
@@ -816,6 +818,47 @@ export class ApiService {
       return false;
     }
   }
+
+
+  // Add this inside ApiService class
+static async logAllStaff(): Promise<void> {
+  try {
+    // Ensure user is authenticated (your RLS allows only authenticated)
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      console.warn('[ApiService.logAllStaff] Not logged in — skipping fetch.');
+      return;
+    }
+
+    console.log('[ApiService.logAllStaff] Fetching active staff…');
+    const rows = await this.getAllStaff();
+
+    if (!rows?.length) {
+      console.log('[ApiService.logAllStaff] No staff found.');
+      return;
+    }
+
+    // Clean, readable console output
+    console.table(
+      rows.map(r => ({
+        id: r.id,
+        name: r.name,
+        email: r.email,
+        role: r.role,
+        status: r.status,
+        last_login: r.last_login,
+        created_at: r.created_at
+      }))
+    );
+
+    // If you also want raw data:
+    console.log('[ApiService.logAllStaff] Raw:', rows);
+  } catch (err) {
+    console.error('[ApiService.logAllStaff] Error:', err);
+  }
 }
+}
+
+
 
 export default ApiService;

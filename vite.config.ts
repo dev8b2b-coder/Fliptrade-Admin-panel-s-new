@@ -86,4 +86,8 @@
       port: 3000,
       open: true,
     },
+    preview: {
+      allowedHosts: ['05c4a11d1497.ngrok-free.app'], // 👈 Add this line
+    },
+  
   });

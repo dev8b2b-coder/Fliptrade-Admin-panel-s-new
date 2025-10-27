@@ -1,9 +1,15 @@
 import { createClient } from '@supabase/supabase-js';
 
 // Get Supabase credentials from environment variables or use hardcoded fallback
-const supabaseUrl = ((import.meta as any).env?.VITE_SUPABASE_URL as string | undefined)?.toString().trim() || 'https://uwooqqjtwnorpiszpeah.supabase.co';
-const supabaseAnonKey = ((import.meta as any).env?.VITE_SUPABASE_ANON_KEY as string | undefined)?.toString().trim() || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV3b29xcWp0d25vcnBpc3pwZWFoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA0NTEwODEsImV4cCI6MjA3NjAyNzA4MX0.-465t-JgYjYWe9hDnraWbne1y7aZIoSHDGtDVQ8IWKk';
+const supabaseUrl = ((import.meta as any).env?.VITE_SUPABASE_URL as string | undefined)?.toString().trim() || 'https://vuqpcscdsviipzlydabc.supabase.co';
+const supabaseAnonKey = ((import.meta as any).env?.VITE_SUPABASE_ANON_KEY as string | undefined)?.toString().trim() || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ1cXBjc2Nkc3ZpaXB6bHlkYWJjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEyOTEzNzMsImV4cCI6MjA3Njg2NzM3M30.1Ga4Ev2zTCcZdElGVfwgexRwywloJRJoTu0RHBqqmbQ';
 
+if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error(
+      'Supabase env missing. Define VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env.local'
+    );
+  }
+  
 // Always configured since we have fallback values
 export const isSupabaseConfigured = true;
 

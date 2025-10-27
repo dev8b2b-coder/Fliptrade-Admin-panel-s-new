@@ -25,6 +25,11 @@ export function ProfilePage() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
 
+
+
+  const Server = import.meta.env.VITE_NODE_SERVER;
+
+  
   const handleProfileUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsUpdating(true);
@@ -32,6 +37,8 @@ export function ProfilePage() {
     try {
       if (user) {
         // Update profile in database
+        // console.log("hi gagan test");
+        
         await ApiService.updateStaff(user.id, {
           name: name,
           // Don't update email as it should be read-only
@@ -51,6 +58,8 @@ export function ProfilePage() {
     }
   };
 
+  
+
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -69,9 +78,22 @@ export function ProfilePage() {
     try {
       if (user) {
         // Update password in database
-        await ApiService.updateStaff(user.id, {
-          password_hash: newPassword, // In a real app, this should be hashed
-        } as Partial<Staff>);
+        // await ApiService.updateStaff(user.id, {
+        //   password_hash: newPassword, // In a real app, this should be hashed
+        // } as Partial<Staff>);
+
+          const email=localStorage.getItem('email');
+          const res = await fetch(`${Server}/v1/staff/change-password`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ "email":email, "currentPassword":currentPassword, "newPassword":newPassword, "confirmPassword":confirmPassword }),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            toast.error(data?.error || 'Failed to resend OTP.');
+           
+            return;
+          }
 
         // Clear form
         setCurrentPassword('');
@@ -87,6 +109,7 @@ export function ProfilePage() {
       setIsChangingPassword(false);
     }
   };
+
 
   // Image upload functionality removed for now
 
@@ -299,7 +322,7 @@ export function ProfilePage() {
 
                   <Button
                     type="submit"
-                    className="w-full bg-[#6a40ec] hover:bg-[#5a2fd9] text-white border border-[#6a40ec] px-3 py-2"
+                    className="w-full bg-[#6a40ec] hover:bg-[#5a2fd9] text-white border border-[#6a40ec] px-3 py-2"  
                     disabled={isChangingPassword || newPassword !== confirmPassword || newPassword.length < 8}
                   >
                     {isChangingPassword ? 'Changing Password...' : 'Change Password'}

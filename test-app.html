@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test App</title>
+</head>
+<body>
+    <h1>Test Page</h1>
+    <p>If you can see this, the server is working.</p>
+    <p>Now try accessing: <a href="http://localhost:3003" target="_blank">http://localhost:3003</a></p>
+    
+    <script>
+        console.log('Test page loaded successfully');
+        
+        // Test if we can access the main app
+        fetch('http://localhost:3003')
+            .then(response => {
+                console.log('Main app response:', response.status);
+                if (response.ok) {
+                    console.log('✅ Main app is accessible');
+                } else {
+                    console.log('❌ Main app returned error:', response.status);
+                }
+            })
+            .catch(error => {
+                console.error('❌ Error accessing main app:', error);
+            });
+    </script>
+</body>
+</html>

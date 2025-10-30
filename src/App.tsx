@@ -20,6 +20,7 @@ import { Toaster } from './components/ui/sonner';
 function AppContent() {
   const { currentPage, isAuthenticated, canAccessStaffManagement, canAccessActivityLogs, canAccessDashboard, setCurrentPage, user } = useAdmin();
 
+  
   // Show authentication pages
   if (!isAuthenticated) {
     switch (currentPage) {

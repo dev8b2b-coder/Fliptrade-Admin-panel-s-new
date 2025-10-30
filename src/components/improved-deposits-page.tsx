@@ -543,7 +543,7 @@ export function ImprovedDepositsPage() {
                         <div className="text-2xl font-bold text-[#6a40ec]">
                           ${((parseFloat(formData.localDeposit) || 0) + (parseFloat(formData.usdtDeposit) || 0) + (parseFloat(formData.cashDeposit) || 0)).toLocaleString()}
                         </div>
-                        <div className="text-sm text-gray-600">Total Deposits</div>
+                        <div className="text-sm text-gray-600">Total Balance</div>
                       </div>
                       <div className="text-center">
                         <div className="text-2xl font-bold text-blue-600">
@@ -665,7 +665,7 @@ export function ImprovedDepositsPage() {
                     <TableHead>Local Deposit</TableHead>
                     <TableHead>USDT Deposit</TableHead>
                     <TableHead>Cash Deposit</TableHead>
-                    <TableHead>Total Deposit</TableHead>
+                    <TableHead>Total Balance</TableHead>
                     <TableHead>Client Incentive</TableHead>
                     <TableHead>Company Expense</TableHead>
                     <TableHead>Today's Balance</TableHead>

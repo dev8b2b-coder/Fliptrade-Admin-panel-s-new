@@ -1426,7 +1426,7 @@ export function EnhancedDepositsNew() {
                     <TableHead>Local Withdraw</TableHead>
                     <TableHead>USDT Withdraw</TableHead>
                     <TableHead>Cash Withdraw</TableHead>
-                    <TableHead>Total Deposit</TableHead>
+                    <TableHead>Total Balance</TableHead>
                     <TableHead>Client Incentive</TableHead>
                     <TableHead>Company Expense</TableHead>
                     <TableHead>Today's Balance</TableHead>

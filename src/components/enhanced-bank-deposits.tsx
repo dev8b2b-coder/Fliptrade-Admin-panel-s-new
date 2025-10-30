@@ -1764,14 +1764,14 @@ export function EnhancedBankDeposits() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Submitted By</TableHead>
-                  <TableHead>Bank</TableHead>
-                  <TableHead>Deposit</TableHead>
-                  <TableHead>Withdraw</TableHead>
-                  <TableHead>P&L</TableHead>
-                  <TableHead>Remaining Balance</TableHead>
-                  <TableHead>Actions</TableHead>
+                  <TableHead className="text-center">Date</TableHead>
+                  <TableHead className="text-center">Submitted By</TableHead>
+                  <TableHead className="text-center">Bank</TableHead>
+                  <TableHead className="text-center">Deposit</TableHead>
+                  <TableHead className="text-center">Withdraw</TableHead>
+                  <TableHead className="text-center">P&L</TableHead>
+                  <TableHead className="text-center">Remaining Balance</TableHead>
+                  <TableHead className="text-center">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1784,23 +1784,23 @@ export function EnhancedBankDeposits() {
                       key={transaction.id}
                       className={isEven ? 'bg-gray-50' : 'bg-white'}
                     >
-                      <TableCell className="font-medium">
+                      <TableCell className="font-medium text-center">
                         {new Date(transaction.date).toLocaleDateString()}
                       </TableCell>
-                      <TableCell className="text-sm text-gray-600">
+                      <TableCell className="text-sm text-gray-600 text-center">
                         {transaction.submittedByName}
                       </TableCell>
-                      <TableCell className="font-medium">
+                      <TableCell className="font-medium text-center">
                         {bank?.name || 'Unknown Bank'}
                       </TableCell>
-                      <TableCell className="text-green-600">
+                      <TableCell className="text-green-600 text-center">
                         {transaction.deposit > 0 ? `${transaction.deposit.toLocaleString()}` : '-'}
                       </TableCell>
-                      <TableCell className="text-red-600">
+                      <TableCell className="text-red-600 text-center">
                         {transaction.withdraw > 0 ? `${transaction.withdraw.toLocaleString()}` : '-'}
                       </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
+                      <TableCell className="text-center">
+                        <div className="flex items-center justify-center gap-1">
                           {transaction.pnl !== undefined && transaction.pnl !== null ? (
                             <>
                               <span className={transaction.pnl >= 0 ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
@@ -1817,7 +1817,7 @@ export function EnhancedBankDeposits() {
                           )}
                         </div>
                       </TableCell>
-                      <TableCell className="font-medium">
+                      <TableCell className="font-medium text-center">
                         <span className={transaction.remaining >= 0 ? 'text-green-600' : 'text-red-600'}>
                           ${transaction.remaining.toLocaleString()}
                         </span>

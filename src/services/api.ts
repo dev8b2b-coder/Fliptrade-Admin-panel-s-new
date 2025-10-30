@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase';
+import { supabase, supabaseAdmin, isSupabaseConfigured } from '../lib/supabase';
 
 // Types
 export interface Staff {
@@ -87,9 +87,85 @@ export interface BankTransaction {
 
 // API Service Class
 export class ApiService {
+  // EMAIL SERVICE
+  static get emailApiBase(): string {
+    const base = (import.meta as any).env?.VITE_EMAIL_API_URL as string | undefined;
+    return (base && base.trim()) || 'http://localhost:3001';
+  }
+
+  static async sendWelcomeEmail(params: { email: string; staffName: string; tempPassword: string }): Promise<void> {
+    const res = await fetch(`${this.emailApiBase}/api/send-welcome-email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Welcome email failed: ${res.status} ${text}`);
+    }
+  }
+
+  static async sendPasswordResetOtp(params: { email: string; staffName: string; otp: string }): Promise<void> {
+    const res = await fetch(`${this.emailApiBase}/api/send-password-reset-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Password reset email failed: ${res.status} ${text}`);
+    }
+  }
+
+  static async supabaseInvite(email: string, name: string, tempPassword?: string): Promise<void> {
+    const res = await fetch(`${this.emailApiBase}/api/supabase/invite`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, name, tempPassword }),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Supabase invite failed: ${res.status} ${text}`);
+    }
+  }
+
+  static async supabaseRecover(email: string, redirectTo?: string): Promise<void> {
+    const res = await fetch(`${this.emailApiBase}/api/supabase/recover`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, redirectTo }),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Supabase recover failed: ${res.status} ${text}`);
+    }
+  }
   // STAFF MANAGEMENT APIs
   static async getAllStaff(): Promise<Staff[]> {
     console.log('API: Fetching all staff...');
+    
+    if (!isSupabaseConfigured) {
+      // Use localStorage fallback
+      const savedStaff = localStorage.getItem('admin_staff');
+      if (savedStaff) {
+        const staff = JSON.parse(savedStaff);
+        console.log('API: Staff fetched from localStorage:', staff.length, 'records');
+        return staff.map((s: any) => ({
+          id: s.id,
+          name: s.name,
+          email: s.email,
+          role: s.role,
+          status: s.status,
+          avatar: s.avatar,
+          created_at: s.createdAt,
+          last_login: s.lastLogin,
+          is_archived: s.isArchived || false,
+          archived_at: s.archivedAt,
+        })).filter((s: any) => s.status === 'active');
+      }
+      return [];
+    }
+    
     const { data, error } = await supabase
       .from('staff')
       .select('*')
@@ -124,6 +200,35 @@ export class ApiService {
 
   static async createStaff(staff: CreateStaffData): Promise<Staff> {
     console.log('API: Creating staff:', staff);
+    
+    if (!isSupabaseConfigured) {
+      // Use localStorage fallback
+      const savedStaff = localStorage.getItem('admin_staff');
+      const staffList = savedStaff ? JSON.parse(savedStaff) : [];
+      const newStaff = {
+        id: crypto.randomUUID(),
+        name: staff.name,
+        email: staff.email,
+        role: staff.role,
+        status: staff.status,
+        avatar: staff.avatar,
+        createdAt: new Date().toISOString().split('T')[0],
+        password_hash: staff.password_hash,
+      };
+      staffList.push(newStaff);
+      localStorage.setItem('admin_staff', JSON.stringify(staffList));
+      console.log('API: Staff created in localStorage:', newStaff);
+      return {
+        id: newStaff.id,
+        name: newStaff.name,
+        email: newStaff.email,
+        role: newStaff.role,
+        status: newStaff.status,
+        avatar: newStaff.avatar,
+        created_at: newStaff.createdAt,
+      };
+    }
+    
     const { data, error } = await supabase
       .from('staff')
       .insert({
@@ -146,9 +251,63 @@ export class ApiService {
     console.log('API: Updating staff:', id, updates);
     console.log('API: Updates object:', JSON.stringify(updates, null, 2));
     
+    if (!isSupabaseConfigured) {
+      // Use localStorage fallback
+      const savedStaff = localStorage.getItem('admin_staff');
+      if (savedStaff) {
+        const staff = JSON.parse(savedStaff);
+        const index = staff.findIndex((s: any) => s.id === id);
+        if (index !== -1) {
+          // Update the staff member
+          staff[index] = {
+            ...staff[index],
+            ...updates,
+            // Map database fields to local storage format
+            createdAt: updates.created_at || staff[index].createdAt,
+            lastLogin: updates.last_login || staff[index].lastLogin,
+            isArchived: updates.is_archived !== undefined ? updates.is_archived : staff[index].isArchived,
+          };
+          localStorage.setItem('admin_staff', JSON.stringify(staff));
+          console.log('API: Staff updated in localStorage:', staff[index]);
+          return {
+            id: staff[index].id,
+            name: staff[index].name,
+            email: staff[index].email,
+            role: staff[index].role,
+            status: staff[index].status,
+            avatar: staff[index].avatar,
+            created_at: staff[index].createdAt,
+            last_login: staff[index].lastLogin,
+            is_archived: staff[index].isArchived,
+            archived_at: staff[index].archivedAt,
+          };
+        }
+      }
+      throw new Error('Staff member not found');
+    }
+    
+    // Sanitize and map fields to match DB schema (snake_case, valid columns only)
+    const payload: Record<string, any> = {};
+    if (updates.name !== undefined) payload.name = updates.name;
+    if (updates.email !== undefined) payload.email = updates.email;
+    if (updates.role !== undefined) payload.role = updates.role as any;
+    if (updates.status !== undefined) payload.status = updates.status as any;
+    if ((updates as any).avatar !== undefined) payload.avatar = (updates as any).avatar;
+    if ((updates as any).lastLogin !== undefined) payload.last_login = (updates as any).lastLogin;
+    if ((updates as any).isArchived !== undefined) payload.is_archived = (updates as any).isArchived;
+    if ((updates as any).archivedAt !== undefined) payload.archived_at = (updates as any).archivedAt;
+    if ((updates as any).password_hash !== undefined) payload.password_hash = (updates as any).password_hash;
+    // Always bump updated_at when we perform updates
+    if (Object.keys(payload).length > 0) payload.updated_at = new Date().toISOString();
+
+    if (Object.keys(payload).length === 0) {
+      throw new Error('No valid fields to update');
+    }
+    // Never try to update created_at/id/password_hash via this path
+
     const { data, error } = await supabase
       .from('staff')
-      .update(updates)
+      .update(payload)
       .eq('id', id)
       .select()
       .single();
@@ -165,6 +324,20 @@ export class ApiService {
 
   static async deleteStaff(id: string): Promise<void> {
     console.log('API: Deleting staff:', id);
+    
+    if (!isSupabaseConfigured) {
+      // Use localStorage fallback
+      const savedStaff = localStorage.getItem('admin_staff');
+      if (savedStaff) {
+        const staff = JSON.parse(savedStaff);
+        const filteredStaff = staff.filter((s: any) => s.id !== id);
+        localStorage.setItem('admin_staff', JSON.stringify(filteredStaff));
+        console.log('API: Staff deleted from localStorage');
+        return;
+      }
+      throw new Error('Staff member not found');
+    }
+    
     const { error } = await supabase
       .from('staff')
       .delete()
@@ -230,9 +403,70 @@ export class ApiService {
     return data || [];
   }
 
+  static async upsertStaffPermissions(staffId: string, perms: {
+    dashboard?: { view: boolean; add: boolean; edit: boolean; delete: boolean };
+    deposits?: { view: boolean; add: boolean; edit: boolean; delete: boolean };
+    bankDeposits?: { view: boolean; add: boolean; edit: boolean; delete: boolean };
+    staffManagement?: { view: boolean; add: boolean; edit: boolean; delete: boolean };
+    activityLogs?: { view: boolean; add: boolean; edit: boolean; delete: boolean };
+  }): Promise<void> {
+    const allowedModules = new Set(['dashboard', 'deposits', 'bankDeposits', 'staffManagement']);
+    const toDbModule = (m: string) => m; // DB expects camelCase per check constraint
+
+    const rows = Object.entries(perms)
+      .filter(([module]) => allowedModules.has(module))
+      .map(([module, p]) => ({
+        id: crypto.randomUUID(),
+        staff_id: staffId,
+        module: toDbModule(module),
+        can_view: !!p?.view,
+        can_add: !!p?.add,
+        can_edit: !!p?.edit,
+        can_delete: !!p?.delete,
+      }));
+
+    // Upsert by composite key (staff_id, module). Ensure unique index exists in DB ideally.
+    const { error } = await supabase
+      .from('staff_permissions')
+      .upsert(rows as any, { onConflict: 'staff_id,module' });
+
+    if (error) {
+      console.error('API Error - Upsert Staff Permissions:', error);
+      throw new Error(error.message);
+    }
+  }
+
   // DEPOSITS MANAGEMENT APIs
   static async getAllDeposits(userId?: string): Promise<Deposit[]> {
     console.log('API: Fetching deposits...', userId ? `for user: ${userId}` : 'for all users');
+    
+    if (!isSupabaseConfigured) {
+      // Use localStorage fallback
+      const savedDeposits = localStorage.getItem('admin_deposits');
+      if (savedDeposits) {
+        const deposits = JSON.parse(savedDeposits);
+        console.log('API: Deposits fetched from localStorage:', deposits.length, 'records');
+        let filtered = deposits;
+        if (userId) {
+          filtered = deposits.filter((d: any) => d.submittedBy === userId);
+        }
+        return filtered.map((d: any) => ({
+          id: d.id,
+          date: d.date,
+          local_deposit: d.localDeposit || 0,
+          usdt_deposit: d.usdtDeposit || 0,
+          cash_deposit: d.cashDeposit || 0,
+          local_withdraw: d.localWithdraw || 0,
+          usdt_withdraw: d.usdtWithdraw || 0,
+          cash_withdraw: d.cashWithdraw || 0,
+          submitted_by: d.submittedBy,
+          submitted_by_name: d.submittedByName,
+          created_at: d.createdAt,
+          updated_at: d.updatedAt,
+        }));
+      }
+      return [];
+    }
     
     let query = supabase
       .from('deposits')
@@ -256,6 +490,42 @@ export class ApiService {
 
   static async createDeposit(deposit: Omit<Deposit, 'id'>): Promise<Deposit> {
     console.log('API: Creating deposit:', deposit);
+    
+    if (!isSupabaseConfigured) {
+      // Use localStorage fallback
+      const savedDeposits = localStorage.getItem('admin_deposits');
+      const deposits = savedDeposits ? JSON.parse(savedDeposits) : [];
+      const newDeposit = {
+        id: crypto.randomUUID(),
+        date: deposit.date,
+        localDeposit: deposit.local_deposit || 0,
+        usdtDeposit: deposit.usdt_deposit || 0,
+        cashDeposit: deposit.cash_deposit || 0,
+        localWithdraw: deposit.local_withdraw || 0,
+        usdtWithdraw: deposit.usdt_withdraw || 0,
+        cashWithdraw: deposit.cash_withdraw || 0,
+        submittedBy: deposit.submitted_by,
+        submittedByName: deposit.submitted_by_name,
+        createdAt: new Date().toISOString(),
+      };
+      deposits.push(newDeposit);
+      localStorage.setItem('admin_deposits', JSON.stringify(deposits));
+      console.log('API: Deposit created in localStorage:', newDeposit);
+      return {
+        id: newDeposit.id,
+        date: newDeposit.date,
+        local_deposit: newDeposit.localDeposit,
+        usdt_deposit: newDeposit.usdtDeposit,
+        cash_deposit: newDeposit.cashDeposit,
+        local_withdraw: newDeposit.localWithdraw,
+        usdt_withdraw: newDeposit.usdtWithdraw,
+        cash_withdraw: newDeposit.cashWithdraw,
+        submitted_by: newDeposit.submittedBy,
+        submitted_by_name: newDeposit.submittedByName,
+        created_at: newDeposit.createdAt,
+      };
+    }
+    
     const { data, error } = await supabase
       .from('deposits')
       .insert({
@@ -276,6 +546,50 @@ export class ApiService {
 
   static async updateDeposit(id: string, updates: Partial<Deposit>): Promise<Deposit> {
     console.log('API: Updating deposit:', id, updates);
+    
+    if (!isSupabaseConfigured) {
+      // Use localStorage fallback
+      const savedDeposits = localStorage.getItem('admin_deposits');
+      if (savedDeposits) {
+        const deposits = JSON.parse(savedDeposits);
+        const index = deposits.findIndex((d: any) => d.id === id);
+        if (index !== -1) {
+          deposits[index] = {
+            ...deposits[index],
+            ...updates,
+            // Map database fields
+            localDeposit: updates.local_deposit !== undefined ? updates.local_deposit : deposits[index].localDeposit,
+            usdtDeposit: updates.usdt_deposit !== undefined ? updates.usdt_deposit : deposits[index].usdtDeposit,
+            cashDeposit: updates.cash_deposit !== undefined ? updates.cash_deposit : deposits[index].cashDeposit,
+            localWithdraw: updates.local_withdraw !== undefined ? updates.local_withdraw : deposits[index].localWithdraw,
+            usdtWithdraw: updates.usdt_withdraw !== undefined ? updates.usdt_withdraw : deposits[index].usdtWithdraw,
+            cashWithdraw: updates.cash_withdraw !== undefined ? updates.cash_withdraw : deposits[index].cashWithdraw,
+            submittedBy: updates.submitted_by || deposits[index].submittedBy,
+            submittedByName: updates.submitted_by_name || deposits[index].submittedByName,
+            updatedAt: new Date().toISOString(),
+          };
+          localStorage.setItem('admin_deposits', JSON.stringify(deposits));
+          console.log('API: Deposit updated in localStorage');
+          const d = deposits[index];
+          return {
+            id: d.id,
+            date: d.date,
+            local_deposit: d.localDeposit,
+            usdt_deposit: d.usdtDeposit,
+            cash_deposit: d.cashDeposit,
+            local_withdraw: d.localWithdraw,
+            usdt_withdraw: d.usdtWithdraw,
+            cash_withdraw: d.cashWithdraw,
+            submitted_by: d.submittedBy,
+            submitted_by_name: d.submittedByName,
+            created_at: d.createdAt,
+            updated_at: d.updatedAt,
+          };
+        }
+      }
+      throw new Error('Deposit not found');
+    }
+    
     const { data, error } = await supabase
       .from('deposits')
       .update(updates)
@@ -294,6 +608,20 @@ export class ApiService {
 
   static async deleteDeposit(id: string): Promise<void> {
     console.log('API: Deleting deposit:', id);
+    
+    if (!isSupabaseConfigured) {
+      // Use localStorage fallback
+      const savedDeposits = localStorage.getItem('admin_deposits');
+      if (savedDeposits) {
+        const deposits = JSON.parse(savedDeposits);
+        const filteredDeposits = deposits.filter((d: any) => d.id !== id);
+        localStorage.setItem('admin_deposits', JSON.stringify(filteredDeposits));
+        console.log('API: Deposit deleted from localStorage');
+        return;
+      }
+      throw new Error('Deposit not found');
+    }
+    
     const { error } = await supabase
       .from('deposits')
       .delete()
@@ -470,6 +798,25 @@ export class ApiService {
   // BANKS MANAGEMENT APIs
   static async getAllBanks(): Promise<Bank[]> {
     console.log('API: Fetching all banks...');
+    
+    if (!isSupabaseConfigured) {
+      // Use localStorage fallback
+      const savedBanks = localStorage.getItem('admin_banks');
+      if (savedBanks) {
+        const banks = JSON.parse(savedBanks);
+        console.log('API: Banks fetched from localStorage:', banks.length, 'records');
+        return banks
+          .filter((b: any) => b.isActive !== false)
+          .map((b: any) => ({
+            id: b.id,
+            name: b.name,
+            is_active: b.isActive !== false,
+            created_at: b.createdAt,
+          }));
+      }
+      return [];
+    }
+    
     const { data, error } = await supabase
       .from('banks')
       .select('*')
@@ -487,27 +834,75 @@ export class ApiService {
 
   static async createBank(bank: Omit<Bank, 'id'>): Promise<Bank> {
     console.log('API: Creating bank:', bank);
-    const { data, error } = await supabase
-      .from('banks')
-      .insert({
-        ...bank,
+    
+    if (!isSupabaseConfigured) {
+      // Use localStorage fallback
+      const savedBanks = localStorage.getItem('admin_banks');
+      const banks = savedBanks ? JSON.parse(savedBanks) : [];
+      const newBank = {
         id: crypto.randomUUID(),
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error('API Error - Create Bank:', error);
-      throw new Error(error.message);
+        name: bank.name,
+        isActive: bank.is_active !== false,
+        createdAt: new Date().toISOString(),
+      };
+      banks.push(newBank);
+      localStorage.setItem('admin_banks', JSON.stringify(banks));
+      console.log('API: Bank created in localStorage:', newBank);
+      return {
+        id: newBank.id,
+        name: newBank.name,
+        is_active: newBank.isActive,
+        created_at: newBank.createdAt,
+      };
     }
+    
+    // Check if user is authenticated in Supabase
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (!user) {
+      console.log('No authenticated user, using admin client...');
+      // Use admin client when no user is authenticated
+      const { data, error } = await supabaseAdmin
+        .from('banks')
+        .insert({
+          ...bank,
+          id: crypto.randomUUID(),
+        })
+        .select()
+        .single();
 
-    console.log('API: Bank created successfully:', data);
-    return data;
+      if (error) {
+        console.error('API Error - Create Bank (Admin):', error);
+        throw new Error(error.message);
+      }
+
+      console.log('API: Bank created successfully (Admin):', data);
+      return data;
+    } else {
+      console.log('Authenticated user found, using regular client...');
+      // Use regular client when user is authenticated
+      const { data, error } = await supabase
+        .from('banks')
+        .insert({
+          ...bank,
+          id: crypto.randomUUID(),
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('API Error - Create Bank (Regular):', error);
+        throw new Error(error.message);
+      }
+
+      console.log('API: Bank created successfully (Regular):', data);
+      return data;
+    }
   }
 
   static async updateBank(id: string, updates: Partial<Bank>): Promise<Bank> {
     console.log('API: Updating bank:', id, updates);
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('banks')
       .update(updates)
       .eq('id', id)
@@ -525,7 +920,7 @@ export class ApiService {
 
   static async deleteBank(id: string): Promise<void> {
     console.log('API: Deleting bank:', id);
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from('banks')
       .delete()
       .eq('id', id);
@@ -542,10 +937,49 @@ export class ApiService {
   static async getAllBankTransactions(userId?: string): Promise<BankTransaction[]> {
     console.log('API: Fetching bank transactions...', userId ? `for user: ${userId}` : 'for all users');
     
-    let query = supabase
-      .from('bank_transactions')
-      .select('*')
-      .order('date', { ascending: false });
+    if (!isSupabaseConfigured) {
+      // Use localStorage fallback
+      const savedTransactions = localStorage.getItem('admin_bank_transactions');
+      if (savedTransactions) {
+        const transactions = JSON.parse(savedTransactions);
+        console.log('API: Bank transactions fetched from localStorage:', transactions.length, 'records');
+        let filtered = transactions;
+        if (userId) {
+          filtered = transactions.filter((t: any) => t.submittedBy === userId);
+        }
+        return filtered.map((t: any) => ({
+          id: t.id,
+          date: t.date,
+          bank_id: t.bankId,
+          deposit: t.deposit || 0,
+          withdraw: t.withdraw || 0,
+          remaining: t.remaining || t.remainingBalance || 0,
+          pnl: t.pnl,
+          submitted_by: t.submittedBy,
+          submitted_by_name: t.submittedByName,
+          created_at: t.createdAt,
+        }));
+      }
+      return [];
+    }
+    
+    // Check if user is authenticated in Supabase
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+    let query;
+    if (!user) {
+      console.log('No authenticated user, using admin client...');
+      query = supabaseAdmin
+        .from('bank_transactions')
+        .select('*')
+        .order('date', { ascending: false });
+    } else {
+      console.log('Authenticated user found, using regular client...');
+      query = supabase
+        .from('bank_transactions')
+        .select('*')
+        .order('date', { ascending: false });
+    }
 
     if (userId) {
       query = query.eq('submitted_by', userId);
@@ -564,11 +998,27 @@ export class ApiService {
 
   static async getBankTransactionsByBank(bankId: string): Promise<BankTransaction[]> {
     console.log('API: Fetching bank transactions for bank:', bankId);
-    const { data, error } = await supabase
-      .from('bank_transactions')
-      .select('*')
-      .eq('bank_id', bankId)
-      .order('date', { ascending: false });
+    // Check if user is authenticated in Supabase
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+    let query;
+    if (!user) {
+      console.log('No authenticated user, using admin client...');
+      query = supabaseAdmin
+        .from('bank_transactions')
+        .select('*')
+        .eq('bank_id', bankId)
+        .order('date', { ascending: false });
+    } else {
+      console.log('Authenticated user found, using regular client...');
+      query = supabase
+        .from('bank_transactions')
+        .select('*')
+        .eq('bank_id', bankId)
+        .order('date', { ascending: false });
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error('API Error - Get Bank Transactions by Bank:', error);
@@ -581,55 +1031,216 @@ export class ApiService {
 
   static async createBankTransaction(transaction: Omit<BankTransaction, 'id'>): Promise<BankTransaction> {
     console.log('API: Creating bank transaction:', transaction);
-    const { data, error } = await supabase
-      .from('bank_transactions')
-      .insert({
-        ...transaction,
+    
+    if (!isSupabaseConfigured) {
+      // Use localStorage fallback
+      const savedTransactions = localStorage.getItem('admin_bank_transactions');
+      const transactions = savedTransactions ? JSON.parse(savedTransactions) : [];
+      const newTransaction = {
         id: crypto.randomUUID(),
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error('API Error - Create Bank Transaction:', error);
-      throw new Error(error.message);
+        date: transaction.date,
+        bankId: transaction.bank_id,
+        deposit: transaction.deposit || 0,
+        withdraw: transaction.withdraw || 0,
+        remaining: transaction.remaining || 0,
+        remainingBalance: transaction.remaining || 0,
+        pnl: transaction.pnl,
+        submittedBy: transaction.submitted_by,
+        submittedByName: transaction.submitted_by_name,
+        createdAt: new Date().toISOString(),
+      };
+      transactions.push(newTransaction);
+      localStorage.setItem('admin_bank_transactions', JSON.stringify(transactions));
+      console.log('API: Bank transaction created in localStorage:', newTransaction);
+      return {
+        id: newTransaction.id,
+        date: newTransaction.date,
+        bank_id: newTransaction.bankId,
+        deposit: newTransaction.deposit,
+        withdraw: newTransaction.withdraw,
+        remaining: newTransaction.remaining,
+        pnl: newTransaction.pnl,
+        submitted_by: newTransaction.submittedBy,
+        submitted_by_name: newTransaction.submittedByName,
+        created_at: newTransaction.createdAt,
+      };
     }
+    
+    // Check if user is authenticated in Supabase
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
 
-    console.log('API: Bank transaction created successfully:', data);
-    return data;
+    if (!user) {
+      console.log('No authenticated user, using admin client...');
+      // Use admin client when no user is authenticated
+      const { data, error } = await supabaseAdmin
+        .from('bank_transactions')
+        .insert({
+          ...transaction,
+          id: crypto.randomUUID(),
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('API Error - Create Bank Transaction (Admin):', error);
+        throw new Error(error.message);
+      }
+
+      console.log('API: Bank transaction created successfully (Admin):', data);
+      return data;
+    } else {
+      console.log('Authenticated user found, using regular client...');
+      // Use regular client when user is authenticated
+      const { data, error } = await supabase
+        .from('bank_transactions')
+        .insert({
+          ...transaction,
+          id: crypto.randomUUID(),
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('API Error - Create Bank Transaction (Regular):', error);
+        throw new Error(error.message);
+      }
+
+      console.log('API: Bank transaction created successfully (Regular):', data);
+      return data;
+    }
   }
 
   static async updateBankTransaction(id: string, updates: Partial<BankTransaction>): Promise<BankTransaction> {
     console.log('API: Updating bank transaction:', id, updates);
-    const { data, error } = await supabase
-      .from('bank_transactions')
-      .update(updates)
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) {
-      console.error('API Error - Update Bank Transaction:', error);
-      throw new Error(error.message);
+    
+    if (!isSupabaseConfigured) {
+      // Use localStorage fallback
+      const savedTransactions = localStorage.getItem('admin_bank_transactions');
+      if (savedTransactions) {
+        const transactions = JSON.parse(savedTransactions);
+        const index = transactions.findIndex((t: any) => t.id === id);
+        if (index !== -1) {
+          transactions[index] = {
+            ...transactions[index],
+            ...updates,
+            // Map database fields
+            bankId: updates.bank_id || transactions[index].bankId,
+            deposit: updates.deposit !== undefined ? updates.deposit : transactions[index].deposit,
+            withdraw: updates.withdraw !== undefined ? updates.withdraw : transactions[index].withdraw,
+            remaining: updates.remaining !== undefined ? updates.remaining : transactions[index].remaining,
+            remainingBalance: updates.remaining !== undefined ? updates.remaining : transactions[index].remainingBalance,
+            pnl: updates.pnl !== undefined ? updates.pnl : transactions[index].pnl,
+            submittedBy: updates.submitted_by || transactions[index].submittedBy,
+            submittedByName: updates.submitted_by_name || transactions[index].submittedByName,
+          };
+          localStorage.setItem('admin_bank_transactions', JSON.stringify(transactions));
+          console.log('API: Bank transaction updated in localStorage');
+          const t = transactions[index];
+          return {
+            id: t.id,
+            date: t.date,
+            bank_id: t.bankId,
+            deposit: t.deposit,
+            withdraw: t.withdraw,
+            remaining: t.remaining || t.remainingBalance,
+            pnl: t.pnl,
+            submitted_by: t.submittedBy,
+            submitted_by_name: t.submittedByName,
+            created_at: t.createdAt,
+          };
+        }
+      }
+      throw new Error('Bank transaction not found');
     }
+    
+    // Check if user is authenticated in Supabase
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
 
-    console.log('API: Bank transaction updated successfully:', data);
-    return data;
+    if (!user) {
+      console.log('No authenticated user, using admin client...');
+      // Use admin client when no user is authenticated
+      const { data, error } = await supabaseAdmin
+        .from('bank_transactions')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('API Error - Update Bank Transaction (Admin):', error);
+        throw new Error(error.message);
+      }
+
+      console.log('API: Bank transaction updated successfully (Admin):', data);
+      return data;
+    } else {
+      console.log('Authenticated user found, using regular client...');
+      // Use regular client when user is authenticated
+      const { data, error } = await supabase
+        .from('bank_transactions')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('API Error - Update Bank Transaction (Regular):', error);
+        throw new Error(error.message);
+      }
+
+      console.log('API: Bank transaction updated successfully (Regular):', data);
+      return data;
+    }
   }
 
   static async deleteBankTransaction(id: string): Promise<void> {
     console.log('API: Deleting bank transaction:', id);
-    const { error } = await supabase
-      .from('bank_transactions')
-      .delete()
-      .eq('id', id);
-
-    if (error) {
-      console.error('API Error - Delete Bank Transaction:', error);
-      throw new Error(error.message);
+    
+    if (!isSupabaseConfigured) {
+      // Use localStorage fallback
+      const savedTransactions = localStorage.getItem('admin_bank_transactions');
+      if (savedTransactions) {
+        const transactions = JSON.parse(savedTransactions);
+        const filteredTransactions = transactions.filter((t: any) => t.id !== id);
+        localStorage.setItem('admin_bank_transactions', JSON.stringify(filteredTransactions));
+        console.log('API: Bank transaction deleted from localStorage');
+        return;
+      }
+      throw new Error('Bank transaction not found');
     }
+    
+    // Check if user is authenticated in Supabase
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
 
-    console.log('API: Bank transaction deleted successfully');
+    if (!user) {
+      console.log('No authenticated user, using admin client...');
+      // Use admin client when no user is authenticated
+      const { error } = await supabaseAdmin
+        .from('bank_transactions')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('API Error - Delete Bank Transaction (Admin):', error);
+        throw new Error(error.message);
+      }
+
+      console.log('API: Bank transaction deleted successfully (Admin)');
+    } else {
+      console.log('Authenticated user found, using regular client...');
+      // Use regular client when user is authenticated
+      const { error } = await supabase
+        .from('bank_transactions')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('API Error - Delete Bank Transaction (Regular):', error);
+        throw new Error(error.message);
+      }
+
+      console.log('API: Bank transaction deleted successfully (Regular)');
+    }
   }
 
   // AUTHENTICATION APIs
@@ -680,7 +1291,7 @@ export class ApiService {
   static async getAllActivities(userId?: string): Promise<any[]> {
     console.log('API: Fetching activities...', userId ? `for user: ${userId}` : 'for all users');
     
-    let query = supabase
+    let query = supabaseAdmin
       .from('activities')
       .select('*')
       .order('timestamp', { ascending: false });
@@ -708,11 +1319,12 @@ export class ApiService {
     user_id: string;
     type: 'success' | 'info' | 'warning' | 'error';
     details?: string;
+    ip_address?: string | null;
   }): Promise<any> {
     console.log('API: Creating activity:', activity);
     console.log('API: Activity type:', activity.type, 'Type of type:', typeof activity.type);
     
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('activities')
       .insert([activity])
       .select()
@@ -731,7 +1343,7 @@ export class ApiService {
   static async getRecentActivities(limit: number = 50): Promise<any[]> {
     console.log('API: Fetching recent activities...', `limit: ${limit}`);
     
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('activities')
       .select('*')
       .gte('timestamp', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())

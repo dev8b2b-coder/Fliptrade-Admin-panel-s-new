@@ -234,7 +234,7 @@ export function EnhancedDepositsPage() {
               Add Deposit Entry
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="w-[80vw] max-w-[80vw] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingDeposit ? 'Edit' : 'Add'} Deposit Entry</DialogTitle>
               <DialogDescription>

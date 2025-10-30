@@ -162,9 +162,25 @@ export function AddStaffPage() {
         setStaff([...staff, newStaff]);
 
         if (formData.sendEmail) {
-          const emailMessage = formData.emailMessage.replace('<temporary-password>', formData.temporaryPassword);
-          toast.success(`Staff member added successfully! Email notification would be sent to ${formData.email} with temporary password.`);
-          console.log('Email message:', emailMessage);
+          try {
+            // Use Supabase Auth Invite (uses your Supabase SMTP)
+            await ApiService.supabaseInvite(formData.email, formData.name, formData.temporaryPassword);
+            toast.success(`Invite email sent to ${formData.email}`);
+          } catch (e:any) {
+            console.error('Supabase invite failed, falling back to SMTP:', e);
+            // Fallback to SMTP server email
+            try {
+              await ApiService.sendWelcomeEmail({
+                email: formData.email,
+                staffName: formData.name,
+                tempPassword: formData.temporaryPassword,
+              });
+              toast.success(`Welcome email sent to ${formData.email}`);
+            } catch (e2:any) {
+              console.error('SMTP email send failed:', e2);
+              toast.error('Staff created but email sending failed');
+            }
+          }
         } else {
           toast.success('Staff member added successfully!');
         }
@@ -176,26 +192,40 @@ export function AddStaffPage() {
           `Created new staff member: ${formData.name} (${formData.role})`
         );
       } else {
-        // Fallback to mock data
-      const newStaff: Staff = {
-        id: Date.now().toString(),
-        name: formData.name,
-        email: formData.email,
-        role: formData.role as UserRole,
-        permissions: formData.permissions,
-        status: 'active',
-        createdAt: new Date().toISOString().split('T')[0],
-      };
+        // Fallback to localStorage when Supabase is not configured
+        const newStaff: Staff = {
+          id: Date.now().toString(),
+          name: formData.name,
+          email: formData.email,
+          role: formData.role as UserRole,
+          permissions: formData.permissions,
+          status: 'active',
+          createdAt: new Date().toISOString().split('T')[0],
+          password_hash: formData.temporaryPassword,
+        };
 
-      setStaff([...staff, newStaff]);
-      
-      if (formData.sendEmail) {
-          const emailMessage = formData.emailMessage.replace('<temporary-password>', formData.temporaryPassword);
-          toast.success(`Staff member added successfully! Email notification would be sent to ${formData.email} with temporary password.`);
-          console.log('Email message:', emailMessage);
-      } else {
-        toast.success('Staff member added successfully!');
-      }
+        // Add to local state
+        const updatedStaff = [...staff, newStaff];
+        setStaff(updatedStaff);
+        
+        // Save to localStorage for persistence
+        localStorage.setItem('admin_staff', JSON.stringify(updatedStaff));
+        console.log('💾 Staff saved to localStorage:', newStaff);
+        
+        if (formData.sendEmail) {
+            const emailMessage = formData.emailMessage.replace('<temporary-password>', formData.temporaryPassword);
+            toast.success(`Staff member added successfully! Email notification would be sent to ${formData.email} with temporary password.`);
+            console.log('Email message:', emailMessage);
+        } else {
+          toast.success('Staff member added successfully!');
+        }
+        
+        // Add activity
+        await addActivity(
+          'Staff member created',
+          'success',
+          `Created new staff member: ${formData.name} (${formData.role})`
+        );
       }
       
       setCurrentPage('staff-management');

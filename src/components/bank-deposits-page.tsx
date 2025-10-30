@@ -59,7 +59,12 @@ export function BankDepositsPage() {
     bankId: 'none',
     deposit: '',
     withdraw: '',
+    pnlType: 'profit',
+    hissabAmount: '',
   });
+
+  // Store custom amount per transaction id for display in table
+  // Removed client-only map; pnl now persisted in DB via `pnl` column
 
   // Searchable dropdown state
   const [bankSearchTerm, setBankSearchTerm] = useState('');
@@ -156,6 +161,7 @@ export function BankDepositsPage() {
     const deposit = parseFloat(transactionForm.deposit) || 0;
     const withdraw = parseFloat(transactionForm.withdraw) || 0;
     const remaining = calculateRemaining(transactionForm.bankId, transactionForm.date, deposit, withdraw);
+    const hissabAmountNum = parseFloat(transactionForm.hissabAmount) || 0;
       const transactionId = crypto.randomUUID();
 
       console.log('💰 New Transaction - Deposit:', deposit, 'Withdraw:', withdraw, 'Remaining:', remaining);
@@ -168,6 +174,7 @@ export function BankDepositsPage() {
           bank_id: transactionForm.bankId,
           deposit,
           withdraw,
+          pnl: (transactionForm.pnlType === 'loss' ? -1 : 1) * (parseFloat(transactionForm.hissabAmount) || 0),
           remaining,
           submitted_by: user?.id || '',
           submitted_by_name: user?.name || '',
@@ -175,6 +182,7 @@ export function BankDepositsPage() {
 
         console.log('✅ New transaction created in database:', transactionData);
         toast.success('Transaction added successfully');
+        
         
         // Add activity
         await addActivity(
@@ -191,6 +199,7 @@ export function BankDepositsPage() {
       bankId: transactionForm.bankId,
       deposit,
       withdraw,
+          pnl: (transactionForm.pnlType === 'loss' ? -1 : 1) * (parseFloat(transactionForm.hissabAmount) || 0),
       remaining,
       submittedBy: user?.id || '',
       submittedByName: user?.name || '',
@@ -206,6 +215,8 @@ export function BankDepositsPage() {
       bankId: 'none',
       deposit: '',
       withdraw: '',
+      pnlType: 'profit',
+      hissabAmount: '',
     });
     setIsTransactionDialogOpen(false);
 
@@ -232,6 +243,8 @@ export function BankDepositsPage() {
       bankId: transaction.bankId,
       deposit: transaction.deposit.toString(),
       withdraw: transaction.withdraw.toString(),
+      pnlType: (typeof transaction.pnl === 'number' && transaction.pnl < 0 ? 'loss' : 'profit') as 'profit' | 'loss',
+      hissabAmount: (typeof transaction.pnl === 'number' ? Math.abs(transaction.pnl).toString() : ''),
     });
     setIsEditDialogOpen(true);
     
@@ -268,10 +281,16 @@ export function BankDepositsPage() {
           bank_id: transactionForm.bankId,
           deposit,
           withdraw,
+          pnl: (transactionForm.pnlType === 'loss' ? -1 : 1) * (parseFloat(transactionForm.hissabAmount) || 0),
           // Note: remaining will be recalculated by the database trigger or we'll handle it in refreshAllData
         });
 
         console.log('✅ Transaction updated in database:', updatedTransaction);
+        // Update custom amount mapping for UI
+        setCustomHissabById(prev => ({
+          ...prev,
+          [editingTransaction.id]: { type: transactionForm.pnlType as 'profit' | 'loss', amount: parseFloat(transactionForm.hissabAmount) || 0 }
+        }));
         toast.success('Transaction updated successfully');
         await addActivity(
           'Bank transaction updated',
@@ -662,6 +681,33 @@ export function BankDepositsPage() {
                   </div>
                 </div>
 
+                {/* Profit/Loss and Custom Amount */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="pnlType">Profit / Loss</Label>
+                    <Select value={transactionForm.pnlType} onValueChange={(v: any) => setTransactionForm({ ...transactionForm, pnlType: v })}>
+                      <SelectTrigger id="pnlType">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="profit">Profit</SelectItem>
+                        <SelectItem value="loss">Loss</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="hissabAmount">Amount ($)</Label>
+                    <Input
+                      id="hissabAmount"
+                      type="number"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={transactionForm.hissabAmount}
+                      onChange={(e) => setTransactionForm({ ...transactionForm, hissabAmount: e.target.value })}
+                    />
+                  </div>
+                </div>
+
                 <div className="flex justify-end space-x-2 pt-4">
                   <Button type="button" variant="outline" onClick={() => setIsTransactionDialogOpen(false)}>
                     Cancel
@@ -800,12 +846,13 @@ export function BankDepositsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Bank</TableHead>
-                  <TableHead>Deposit</TableHead>
-                  <TableHead>Withdraw</TableHead>
-                  <TableHead>Remaining</TableHead>
-                  <TableHead>Submitted By</TableHead>
+                  <TableHead className="text-center">Date</TableHead>
+                  <TableHead className="text-center">Bank</TableHead>
+                  <TableHead className="text-center">Deposit</TableHead>
+                  <TableHead className="text-center">Withdraw</TableHead>
+                  <TableHead className="text-center">Remaining</TableHead>
+                  <TableHead className="text-center">Profit/Loss</TableHead>
+                  <TableHead className="text-center">Submitted By</TableHead>
                   <TableHead className="text-center">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -814,18 +861,27 @@ export function BankDepositsPage() {
                   const bank = banks.find(b => b.id === transaction.bankId);
                   return (
                     <TableRow key={transaction.id}>
-                      <TableCell>{new Date(transaction.date).toLocaleDateString()}</TableCell>
-                      <TableCell>{bank?.name || 'Unknown Bank'}</TableCell>
-                      <TableCell className="text-right">
-                        {transaction.deposit > 0 ? transaction.deposit.toLocaleString() : '-'}
+                      <TableCell className="text-center">{new Date(transaction.date).toLocaleDateString()}</TableCell>
+                      <TableCell className="text-center">{bank?.name || 'Unknown Bank'}</TableCell>
+                      <TableCell className="text-center">
+                        {transaction.deposit > 0 ? `$${transaction.deposit.toLocaleString()}` : '-'}
                       </TableCell>
-                      <TableCell className="text-right">
-                        {transaction.withdraw > 0 ? transaction.withdraw.toLocaleString() : '-'}
+                      <TableCell className="text-center">
+                        {transaction.withdraw > 0 ? `$${transaction.withdraw.toLocaleString()}` : '-'}
                     </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {transaction.remaining.toLocaleString()}
+                      <TableCell className="text-center font-medium">
+                        {`$${transaction.remaining.toLocaleString()}`}
                           </TableCell>
-                      <TableCell>{transaction.submittedByName || 'Unknown'}</TableCell>
+                      <TableCell className="text-center">
+                        {typeof transaction.pnl === 'number' ? (
+                          <span className={transaction.pnl >= 0 ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
+                            {transaction.pnl >= 0 ? '+' : '-'}${Math.abs(transaction.pnl).toLocaleString()}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">{transaction.submittedByName || 'Unknown'}</TableCell>
                           <TableCell className="text-center">
                         <div className="flex justify-center space-x-2">
                           {canEditBankTransactions && (
@@ -949,6 +1005,32 @@ export function BankDepositsPage() {
                     </div>
                   )}
                 </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="editPnlType" className="text-sm font-medium text-gray-700">Profit / Loss</Label>
+                <Select value={transactionForm.pnlType} onValueChange={(v: any) => setTransactionForm({ ...transactionForm, pnlType: v })}>
+                  <SelectTrigger id="editPnlType">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="profit">Profit</SelectItem>
+                    <SelectItem value="loss">Loss</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="editHissabAmount" className="text-sm font-medium text-gray-700">Amount ($)</Label>
+                <Input
+                  id="editHissabAmount"
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={transactionForm.hissabAmount}
+                  onChange={(e) => setTransactionForm({ ...transactionForm, hissabAmount: e.target.value })}
+                  className="border-gray-300 focus:border-[#6a40ec] focus:ring-[#6a40ec]/20"
+                />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">

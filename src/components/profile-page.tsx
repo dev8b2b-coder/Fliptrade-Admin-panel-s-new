@@ -59,8 +59,8 @@ export function ProfilePage() {
       return;
     }
 
-    if (newPassword.length < 6) {
-      toast.error('Password must be at least 6 characters long');
+    if (newPassword.length < 8) {
+      toast.error('Password must be at least 8 characters long');
       return;
     }
 
@@ -68,6 +68,18 @@ export function ProfilePage() {
 
     try {
       if (user) {
+        // Verify current password against DB
+        const dbStaff = await ApiService.getStaffById(user.id);
+        if (!dbStaff) {
+          throw new Error('User not found');
+        }
+        const currentHash = (dbStaff as any).password_hash;
+        if (!currentHash || currentPassword !== currentHash) {
+          toast.error('Current password is incorrect');
+          setIsChangingPassword(false);
+          return;
+        }
+
         // Update password in database
         await ApiService.updateStaff(user.id, {
           password_hash: newPassword, // In a real app, this should be hashed

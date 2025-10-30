@@ -57,7 +57,7 @@ const menuItems = [
 ];
 
 export function Sidebar() {
-  const { currentPage, setCurrentPage, setIsAuthenticated, setUser, canAccessStaffManagement, canAccessActivityLogs, canAccessDashboard } = useAdmin();
+  const { currentPage, setCurrentPage, setIsAuthenticated, setUser, canAccessStaffManagement, canAccessActivityLogs, canAccessDashboard, canAccessDeposits, canAccessBankDeposits } = useAdmin();
 
   const handleLogout = () => {
     setIsAuthenticated(false);
@@ -81,6 +81,12 @@ export function Sidebar() {
               return null;
             }
             if (item.id === 'activity-logs' && !canAccessActivityLogs()) {
+              return null;
+            }
+            if (item.id === 'deposits' && !canAccessDeposits()) {
+              return null;
+            }
+            if (item.id === 'bank-deposits' && !canAccessBankDeposits()) {
               return null;
             }
 

@@ -255,6 +255,7 @@ export function ActivityLogsPage() {
                       <TableHead>Timestamp</TableHead>
                       <TableHead>Action</TableHead>
                       <TableHead>User</TableHead>
+                      <TableHead>IP</TableHead>
                       <TableHead>Details</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -268,6 +269,7 @@ export function ActivityLogsPage() {
                           {getTypeIcon(activity.type)} {activity.action}
                         </TableCell>
                         <TableCell>{activity.user}</TableCell>
+                        <TableCell className="font-mono text-xs text-gray-600">{activity.ipAddress || '-'}</TableCell>
                         <TableCell className="max-w-xs truncate">
                           {activity.details || '-'}
                         </TableCell>

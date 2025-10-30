@@ -1,4 +1,19 @@
 /*! tailwindcss v4.1.3 | MIT License | https://tailwindcss.com */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom styles for better dialog centering */
+@layer components {
+  .dialog-content {
+    @apply fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2;
+  }
+  
+  .table-cell-center {
+    @apply text-center align-middle;
+  }
+}
+
 @layer properties {
   @supports (((-webkit-hyphens: none)) and (not (margin-trim: inline))) or ((-moz-orient: inline) and (not (color: rgb(from red r g b)))) {
     *, :before, :after, ::backdrop {

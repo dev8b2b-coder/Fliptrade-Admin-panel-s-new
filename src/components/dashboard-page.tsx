@@ -170,20 +170,20 @@ export function DashboardPage() {
 
   const stats = [
     {
-      title: 'Total Withdrawals',
-      value: `$${totalWithdrawals.toLocaleString()}`,
-      change: deposits.length > 0 ? `${deposits.length} entries` : 'No data',
-      changeType: 'negative',
-      icon: ArrowDownCircle,
-      description: 'All withdrawal transactions from deposits',
-    },
-    {
       title: 'Total Deposits',
       value: `$${totalDeposits.toLocaleString()}`,
       change: deposits.length > 0 ? `${deposits.length} entries` : 'No data',
       changeType: 'neutral',
       icon: DollarSign,
       description: 'Local + USDT + Cash Deposits',
+    },
+    {
+      title: 'Total Withdrawals',
+      value: `$${totalWithdrawals.toLocaleString()}`,
+      change: deposits.length > 0 ? `${deposits.length} entries` : 'No data',
+      changeType: 'negative',
+      icon: ArrowDownCircle,
+      description: 'All withdrawal transactions from deposits',
     },
     {
       title: 'Total Company Expenses',

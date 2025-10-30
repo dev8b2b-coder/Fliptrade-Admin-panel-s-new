@@ -121,6 +121,7 @@ export interface Activity {
   type: 'success' | 'info' | 'warning' | 'error';
   details?: string;
   timestamp: Date;
+  ipAddress?: string;
 }
 
 interface AdminContextType {
@@ -153,6 +154,8 @@ interface AdminContextType {
   getFilteredActivities: () => Activity[];
   canAccessStaffManagement: () => boolean;
   canAccessActivityLogs: () => boolean;
+  canAccessDeposits: () => boolean;
+  canAccessBankDeposits: () => boolean;
   canViewDashboardExtras: () => boolean;
   canAccessDashboard: () => boolean;
   getDefaultPageForUser: () => AdminPage;
@@ -243,66 +246,81 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   }, [isAuthenticated, user]);
   
   // Data fetching functions
+  // Capture client public IP once
+  const [clientIp, setClientIp] = useState<string | null>(null);
+  useEffect(() => {
+    fetch('https://api.ipify.org?format=json')
+      .then(r => r.json())
+      .then(d => setClientIp(d?.ip || null))
+      .catch(() => setClientIp(null));
+  }, []);
   const fetchStaff = async () => {
     if (!isSupabaseConfigured) return;
     
     try {
       const staffData = await ApiService.getAllStaff();
-      
-      // Transform data to match expected format
-      const transformedStaff = staffData.map(staff => ({
-        id: staff.id,
-        name: staff.name,
-        email: staff.email,
-        role: staff.role,
-        status: staff.status,
-        avatar: staff.avatar,
-        createdAt: staff.created_at,
-        lastLogin: staff.last_login,
-        isArchived: staff.is_archived,
-        archivedAt: staff.archived_at,
-        permissions: (staff as any).permissions || (() => {
-          // Default permissions based on role
-          const isSuperAdmin = staff.role === 'Super Admin';
-          const isAdmin = staff.role === 'Admin';
-          const isManager = staff.role === 'Manager';
-          const isAccountant = staff.role === 'Accountant';
-          
-          return {
-            dashboard: { 
-              view: true, 
-              add: isSuperAdmin || isAdmin, 
-              edit: isSuperAdmin || isAdmin, 
-              delete: isSuperAdmin 
-            },
-            deposits: { 
-              view: true, 
-              add: isSuperAdmin || isAdmin || isManager || isAccountant, 
-              edit: isSuperAdmin || isAdmin || isManager || isAccountant, 
-              delete: isSuperAdmin || isAdmin 
-            },
-            bankDeposits: { 
-              view: true, 
-              add: isSuperAdmin || isAdmin || isManager || isAccountant, 
-              edit: isSuperAdmin || isAdmin || isManager || isAccountant, 
-              delete: isSuperAdmin || isAdmin 
-            },
-            staffManagement: { 
-              view: isSuperAdmin || isAdmin || isManager,
-              add: isSuperAdmin || isAdmin,
-              edit: isSuperAdmin || isAdmin,
-              delete: isSuperAdmin
-            },
-            activityLogs: { 
-              view: isSuperAdmin || isAdmin,
-              add: isSuperAdmin || isAdmin,
-              edit: isSuperAdmin || isAdmin,
-              delete: isSuperAdmin
-            }
+
+      const transformedStaff = await Promise.all(staffData.map(async (s) => {
+        // Load permissions rows for each staff
+        let permissionsRows: any[] = [];
+        try {
+          permissionsRows = await ApiService.getStaffPermissions(s.id);
+        } catch {}
+
+        const toModule = (module: string) => {
+          // Accept both DB snake_case and camelCase for safety
+          const candidates = [
+            module,
+            module === 'bankDeposits' ? 'bank_deposits' :
+            module === 'staffManagement' ? 'staff_management' :
+            module === 'activityLogs' ? 'activity_logs' : module
+          ];
+          return permissionsRows.find(r => candidates.includes(r.module));
+        };
+        const permsObj = ((): any => {
+          const defaults = (() => {
+            const isSuperAdmin = s.role === 'Super Admin';
+            const isAdmin = s.role === 'Admin';
+            const isManager = s.role === 'Manager';
+            const isAccountant = s.role === 'Accountant';
+            return {
+              dashboard: { view: true, add: isSuperAdmin || isAdmin, edit: isSuperAdmin || isAdmin, delete: isSuperAdmin },
+              deposits: { view: true, add: isSuperAdmin || isAdmin || isManager || isAccountant, edit: isSuperAdmin || isAdmin || isManager || isAccountant, delete: isSuperAdmin || isAdmin },
+              bankDeposits: { view: true, add: isSuperAdmin || isAdmin || isManager || isAccountant, edit: isSuperAdmin || isAdmin || isManager || isAccountant, delete: isSuperAdmin || isAdmin },
+              staffManagement: { view: isSuperAdmin || isAdmin || isManager, add: isSuperAdmin || isAdmin, edit: isSuperAdmin || isAdmin, delete: isSuperAdmin },
+              activityLogs: { view: isSuperAdmin || isAdmin, add: isSuperAdmin || isAdmin, edit: isSuperAdmin || isAdmin, delete: isSuperAdmin },
+            };
+          })();
+
+          const build = (module: keyof typeof defaults) => {
+            const row = toModule(module as string);
+            return row ? { view: row.can_view, add: row.can_add, edit: row.can_edit, delete: row.can_delete } : defaults[module];
           };
-        })()
+
+          return {
+            dashboard: build('dashboard'),
+            deposits: build('deposits'),
+            bankDeposits: build('bankDeposits'),
+            staffManagement: build('staffManagement'),
+            activityLogs: build('activityLogs'),
+          };
+        })();
+
+        return {
+          id: s.id,
+          name: s.name,
+          email: s.email,
+          role: s.role,
+          status: s.status,
+          avatar: s.avatar,
+          createdAt: s.created_at,
+          lastLogin: s.last_login,
+          isArchived: s.is_archived,
+          archivedAt: s.archived_at,
+          permissions: permsObj,
+        };
       }));
-      
+
       setStaff(transformedStaff);
     } catch (error) {
       console.error('Error fetching staff:', error);
@@ -446,6 +464,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         type: activity.type,
         details: activity.details,
         timestamp: new Date(activity.timestamp),
+        ipAddress: (activity as any).ip_address || undefined,
       }));
       
       console.log('✅ Transformed activities:', transformedActivities);
@@ -457,18 +476,145 @@ export function AdminProvider({ children }: { children: ReactNode }) {
 
   // Refresh all data function
   const refreshAllData = async () => {
-    if (!isSupabaseConfigured) return;
-    
     setIsLoading(true);
     try {
-      await Promise.all([
-        fetchStaff(),
-        fetchDeposits(),
-        fetchBanks(),
-        fetchBankTransactions(),
-        fetchActivities()
-      ]);
-      console.log('All data refreshed successfully');
+      if (isSupabaseConfigured) {
+        await Promise.all([
+          fetchStaff(),
+          fetchDeposits(),
+          fetchBanks(),
+          fetchBankTransactions(),
+          fetchActivities()
+        ]);
+        console.log('All data refreshed successfully');
+      } else {
+        // Refresh localStorage data
+        console.log('🔄 Refreshing localStorage data...');
+        
+        // Load staff data
+        const savedStaff = localStorage.getItem('admin_staff');
+        if (savedStaff) {
+          const parsedStaff = JSON.parse(savedStaff);
+          
+          // Transform data to match expected format
+          const transformedStaff = parsedStaff.map((staff: any) => ({
+            id: staff.id,
+            name: staff.name,
+            email: staff.email,
+            role: staff.role,
+            status: staff.status,
+            avatar: staff.avatar,
+            createdAt: staff.createdAt || staff.created_at,
+            lastLogin: staff.lastLogin || staff.last_login,
+            isArchived: staff.isArchived || staff.is_archived || false,
+            archivedAt: staff.archivedAt || staff.archived_at,
+            needsPasswordReset: staff.needsPasswordReset || staff.needs_password_reset,
+            password_hash: staff.password_hash,
+            permissions: staff.permissions || (() => {
+              // Default permissions based on role
+              const isSuperAdmin = staff.role === 'Super Admin';
+              const isAdmin = staff.role === 'Admin';
+              const isManager = staff.role === 'Manager';
+              const isAccountant = staff.role === 'Accountant';
+              
+              return {
+                dashboard: { 
+                  view: true, 
+                  add: isSuperAdmin || isAdmin, 
+                  edit: isSuperAdmin || isAdmin, 
+                  delete: isSuperAdmin 
+                },
+                deposits: { 
+                  view: true, 
+                  add: isSuperAdmin || isAdmin || isManager || isAccountant, 
+                  edit: isSuperAdmin || isAdmin || isManager || isAccountant, 
+                  delete: isSuperAdmin || isAdmin 
+                },
+                bankDeposits: { 
+                  view: true, 
+                  add: isSuperAdmin || isAdmin || isManager || isAccountant, 
+                  edit: isSuperAdmin || isAdmin || isManager || isAccountant, 
+                  delete: isSuperAdmin || isAdmin 
+                },
+                staffManagement: { 
+                  view: isSuperAdmin || isAdmin || isManager,
+                  add: isSuperAdmin || isAdmin,
+                  edit: isSuperAdmin || isAdmin,
+                  delete: isSuperAdmin
+                },
+                activityLogs: { 
+                  view: isSuperAdmin || isAdmin,
+                  add: isSuperAdmin || isAdmin,
+                  edit: isSuperAdmin || isAdmin,
+                  delete: isSuperAdmin
+                }
+              };
+            })()
+          }));
+          
+          setStaff(transformedStaff);
+          console.log('📂 Refreshed staff from localStorage:', transformedStaff.length, 'staff members');
+        } else {
+          // No staff data found, generate some test data
+          console.log('📂 No staff data found in localStorage, generating test data...');
+          const testStaffMembers: Staff[] = [
+            {
+              id: `admin-${Date.now()}`,
+              name: 'Admin User',
+              email: 'admin@gmail.com',
+              role: 'Super Admin',
+              permissions: {
+                dashboard: { view: true, add: false, edit: false, delete: false },
+                deposits: { view: true, add: true, edit: true, delete: true },
+                bankDeposits: { view: true, add: true, edit: true, delete: true },
+                staffManagement: { view: true, add: true, edit: true, delete: true },
+                activityLogs: { view: true, add: true, edit: true, delete: true },
+              },
+              status: 'active',
+              createdAt: new Date().toISOString().split('T')[0],
+              isArchived: false,
+            }
+          ];
+          
+          setStaff(testStaffMembers);
+          localStorage.setItem('admin_staff', JSON.stringify(testStaffMembers));
+          console.log('📂 Generated and saved test staff data:', testStaffMembers.length, 'staff members');
+        }
+        
+        // Load deposits data
+        const savedDeposits = localStorage.getItem('admin_deposits');
+        if (savedDeposits) {
+          const parsedDeposits = JSON.parse(savedDeposits);
+          setDeposits(parsedDeposits);
+          console.log('📂 Refreshed deposits from localStorage:', parsedDeposits.length, 'deposits');
+        }
+        
+        // Load banks data
+        const savedBanks = localStorage.getItem('admin_banks');
+        if (savedBanks) {
+          const parsedBanks = JSON.parse(savedBanks);
+          setBanks(parsedBanks);
+          console.log('📂 Refreshed banks from localStorage:', parsedBanks.length, 'banks');
+        }
+        
+        // Load bank transactions data
+        const savedBankTransactions = localStorage.getItem('admin_bank_transactions');
+        if (savedBankTransactions) {
+          const parsedBankTransactions = JSON.parse(savedBankTransactions);
+          setBankTransactions(parsedBankTransactions);
+          console.log('📂 Refreshed bank transactions from localStorage:', parsedBankTransactions.length, 'transactions');
+        }
+        
+        // Load activities data
+        const savedActivities = localStorage.getItem('admin_activities');
+        if (savedActivities) {
+          const parsedActivities = JSON.parse(savedActivities);
+          setActivities(parsedActivities);
+          console.log('📂 Refreshed activities from localStorage:', parsedActivities.length, 'activities');
+        }
+        
+        console.log('✅ localStorage data refreshed successfully');
+      }
     } catch (error) {
       console.error('Error refreshing data:', error);
     } finally {
@@ -486,15 +632,66 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       fetchActivities();
     }
     
-    // Load activities from localStorage on mount
-    const savedActivities = localStorage.getItem('admin_activities');
-    if (savedActivities) {
-      try {
-        const parsedActivities = JSON.parse(savedActivities);
-        console.log('📂 Loading activities from localStorage:', parsedActivities.length, 'activities');
-        setActivities(parsedActivities);
-      } catch (error) {
-        console.error('Error loading activities from localStorage:', error);
+    // Load activities from localStorage on mount (only if Supabase is not configured)
+    if (!isSupabaseConfigured) {
+      const savedActivities = localStorage.getItem('admin_activities');
+      if (savedActivities) {
+        try {
+          const parsedActivities = JSON.parse(savedActivities);
+          console.log('📂 Loading activities from localStorage:', parsedActivities.length, 'activities');
+          
+          // Ensure activities have proper Date objects
+          const formattedActivities = parsedActivities.map((activity: any) => ({
+            ...activity,
+            timestamp: activity.timestamp ? new Date(activity.timestamp) : new Date(),
+          }));
+          
+          setActivities(formattedActivities);
+        } catch (error) {
+          console.error('Error loading activities from localStorage:', error);
+          // Initialize with empty array if parsing fails
+          setActivities([]);
+        }
+      } else {
+        // Initialize with mock activities if no saved data
+        const mockActivities: Activity[] = [
+          {
+            id: '1',
+            action: 'User logged in',
+            user: 'Admin User',
+            userId: 'admin-1',
+            time: 'Just now',
+            type: 'success',
+            details: 'Successfully logged into the system',
+            timestamp: new Date(),
+            ipAddress: '192.168.1.1',
+          },
+          {
+            id: '2',
+            action: 'Bank transaction created',
+            user: 'Admin User',
+            userId: 'admin-1',
+            time: '5m ago',
+            type: 'info',
+            details: 'Created new bank transaction for Bank of America',
+            timestamp: new Date(Date.now() - 5 * 60000),
+            ipAddress: '192.168.1.1',
+          },
+          {
+            id: '3',
+            action: 'Deposit entry added',
+            user: 'Admin User',
+            userId: 'admin-1',
+            time: '1h ago',
+            type: 'success',
+            details: 'Added new deposit entry for 2024-01-20',
+            timestamp: new Date(Date.now() - 60 * 60000),
+            ipAddress: '192.168.1.1',
+          },
+        ];
+        setActivities(mockActivities);
+        localStorage.setItem('admin_activities', JSON.stringify(mockActivities));
+        console.log('📂 Initialized with mock activities:', mockActivities.length, 'activities');
       }
     }
   }, [isSupabaseConfigured]);
@@ -519,15 +716,42 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   });
   const [isLoading, setIsLoading] = useState(false);
 
-  // Initialize with mock data only if Supabase is not configured
+  // Initialize with data from localStorage or mock data if Supabase is not configured
   useEffect(() => {
     if (!isSupabaseConfigured) {
-      // Mock staff data
-      setStaff([
+      // Load staff data from localStorage or use mock data
+      const savedStaff = localStorage.getItem('admin_staff');
+      if (savedStaff) {
+        try {
+          const parsedStaff = JSON.parse(savedStaff);
+          setStaff(parsedStaff);
+          console.log('📂 Loaded staff from localStorage:', parsedStaff.length, 'staff members');
+        } catch (error) {
+          console.error('Error loading staff from localStorage:', error);
+          // Fallback to mock data
+          setStaff([
+    {
+      id: 'admin-1',
+      name: 'Admin User',
+      email: 'admin@gmail.com',
+      password_hash: 'admin123', // Simple password for testing
+      role: 'Super Admin',
+      permissions: {
+        dashboard: { view: true, add: true, edit: true, delete: true },
+        deposits: { view: true, add: true, edit: true, delete: true },
+        bankDeposits: { view: true, add: true, edit: true, delete: true },
+        staffManagement: { view: true, add: true, edit: true, delete: true },
+      },
+      status: 'active',
+      createdAt: '2024-01-01',
+      lastLogin: '2024-01-20',
+      isArchived: false,
+    },
     {
       id: '1',
       name: 'John Smith',
       email: 'john@example.com',
+      password_hash: 'password123',
       role: 'Super Admin',
       permissions: {
         dashboard: { view: true, add: false, edit: false, delete: false },
@@ -544,6 +768,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       id: '2', 
       name: 'Sarah Johnson',
       email: 'sarah@example.com',
+      password_hash: 'password123',
       role: 'Manager',
       permissions: {
         dashboard: { view: true, add: false, edit: false, delete: false },
@@ -559,7 +784,8 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     {
       id: '3',
       name: 'Mike Davis',
-      email: 'mike@example.com', 
+      email: 'mike@example.com',
+      password_hash: 'password123',
       role: 'Accountant',
       permissions: {
         dashboard: { view: false, add: false, edit: false, delete: false },
@@ -575,7 +801,8 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     {
       id: '4',
       name: 'Emma Wilson',
-      email: 'emma@example.com', 
+      email: 'emma@example.com',
+      password_hash: 'password123',
       role: 'Viewer',
       permissions: {
         dashboard: { view: false, add: false, edit: false, delete: false },
@@ -587,11 +814,43 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       createdAt: '2024-01-10',
       lastLogin: '2024-01-15',
       isArchived: false,
-    },
-  ]);
+    }
+          ]);
+        }
+      } else {
+        // No saved data, use mock data
+        setStaff([
+          {
+            id: 'admin-1',
+            name: 'Admin User',
+            email: 'admin@gmail.com',
+            password_hash: 'admin123',
+            role: 'Super Admin',
+            permissions: {
+              dashboard: { view: true, add: true, edit: true, delete: true },
+              deposits: { view: true, add: true, edit: true, delete: true },
+              bankDeposits: { view: true, add: true, edit: true, delete: true },
+              staffManagement: { view: true, add: true, edit: true, delete: true },
+            },
+            status: 'active',
+            createdAt: '2024-01-01',
+            lastLogin: '2024-01-20',
+            isArchived: false,
+          }
+        ]);
+      }
 
-      // Mock deposits data
-      setDeposits([
+      // Load deposits data from localStorage or use mock data
+      const savedDeposits = localStorage.getItem('admin_deposits');
+      if (savedDeposits) {
+        try {
+          const parsedDeposits = JSON.parse(savedDeposits);
+          setDeposits(parsedDeposits);
+          console.log('📂 Loaded deposits from localStorage:', parsedDeposits.length, 'deposits');
+        } catch (error) {
+          console.error('Error loading deposits from localStorage:', error);
+          // Fallback to mock data
+          setDeposits([
     {
       id: '1',
       date: '2024-01-20',
@@ -796,21 +1055,72 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       submittedBy: '2',
       submittedByName: 'Sarah Johnson',
     }
-  ]);
+          ]);
+        }
+      } else {
+        // No saved data, use mock data
+        setDeposits([
+          {
+            id: '1',
+            date: '2024-01-20',
+            localDeposit: 75000,
+            usdtDeposit: 45000,
+            cashDeposit: 25000,
+            localWithdraw: 0,
+            usdtWithdraw: 0,
+            cashWithdraw: 0,
+            clientIncentives: [],
+            expenses: [],
+            submittedBy: '2',
+            submittedByName: 'Sarah Johnson',
+          }
+        ]);
+      }
 
-      // Mock banks data
-      setBanks([
-    { id: '1', name: 'Bank of America' },
-    { id: '2', name: 'Chase Bank' },
-    { id: '3', name: 'Wells Fargo' },
-    { id: '4', name: 'JPMorgan Chase' },
-    { id: '5', name: 'Citibank' },
-    { id: '6', name: 'HSBC Bank' },
-    { id: '7', name: 'TD Bank' },
-  ]);
+      // Load banks data from localStorage or use mock data
+      const savedBanks = localStorage.getItem('admin_banks');
+      if (savedBanks) {
+        try {
+          const parsedBanks = JSON.parse(savedBanks);
+          setBanks(parsedBanks);
+          console.log('📂 Loaded banks from localStorage:', parsedBanks.length, 'banks');
+        } catch (error) {
+          console.error('Error loading banks from localStorage:', error);
+          // Fallback to mock data
+          setBanks([
+            { id: '1', name: 'Bank of America' },
+            { id: '2', name: 'Chase Bank' },
+            { id: '3', name: 'Wells Fargo' },
+            { id: '4', name: 'JPMorgan Chase' },
+            { id: '5', name: 'Citibank' },
+            { id: '6', name: 'HSBC Bank' },
+            { id: '7', name: 'TD Bank' },
+          ]);
+        }
+      } else {
+        // No saved data, use mock data
+        setBanks([
+          { id: '1', name: 'Bank of America' },
+          { id: '2', name: 'Chase Bank' },
+          { id: '3', name: 'Wells Fargo' },
+          { id: '4', name: 'JPMorgan Chase' },
+          { id: '5', name: 'Citibank' },
+          { id: '6', name: 'HSBC Bank' },
+          { id: '7', name: 'TD Bank' },
+        ]);
+      }
 
-      // Mock bank transactions data
-      setBankTransactions([
+      // Load bank transactions data from localStorage or use mock data
+      const savedBankTransactions = localStorage.getItem('admin_bank_transactions');
+      if (savedBankTransactions) {
+        try {
+          const parsedTransactions = JSON.parse(savedBankTransactions);
+          setBankTransactions(parsedTransactions);
+          console.log('📂 Loaded bank transactions from localStorage:', parsedTransactions.length, 'transactions');
+        } catch (error) {
+          console.error('Error loading bank transactions from localStorage:', error);
+          // Fallback to mock data
+          setBankTransactions([
     {
       id: '1',
       date: '2024-01-20',
@@ -991,15 +1301,85 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       submittedBy: '3',
       submittedByName: 'Mike Davis',
     }
-  ]);
+          ]);
+        }
+      } else {
+        // No saved data, use mock data
+        setBankTransactions([
+          {
+            id: '1',
+            date: '2024-01-20',
+            bankId: '1',
+            deposit: 150000,
+            withdraw: 25000,
+            remaining: 425000,
+            submittedBy: '2',
+            submittedByName: 'Sarah Johnson',
+          }
+        ]);
+      }
 
-      // Mock withdrawals data
-      setWithdrawals([
-    { id: '1', date: '2024-01-15', amount: 25000 },
-    { id: '2', date: '2024-01-16', amount: 18000 },
-  ]);
+      // Load withdrawals data from localStorage or use mock data
+      const savedWithdrawals = localStorage.getItem('admin_withdrawals');
+      if (savedWithdrawals) {
+        try {
+          const parsedWithdrawals = JSON.parse(savedWithdrawals);
+          setWithdrawals(parsedWithdrawals);
+          console.log('📂 Loaded withdrawals from localStorage:', parsedWithdrawals.length, 'withdrawals');
+        } catch (error) {
+          console.error('Error loading withdrawals from localStorage:', error);
+          // Fallback to mock data
+          setWithdrawals([
+            { id: '1', date: '2024-01-15', amount: 25000 },
+            { id: '2', date: '2024-01-16', amount: 18000 },
+          ]);
+        }
+      } else {
+        // No saved data, use mock data
+        setWithdrawals([
+          { id: '1', date: '2024-01-15', amount: 25000 },
+          { id: '2', date: '2024-01-16', amount: 18000 },
+        ]);
+      }
     }
   }, [isSupabaseConfigured]);
+
+  // Save data to localStorage whenever it changes
+  useEffect(() => {
+    if (!isSupabaseConfigured && staff.length > 0) {
+      localStorage.setItem('admin_staff', JSON.stringify(staff));
+    }
+  }, [staff, isSupabaseConfigured]);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured && deposits.length > 0) {
+      localStorage.setItem('admin_deposits', JSON.stringify(deposits));
+    }
+  }, [deposits, isSupabaseConfigured]);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured && banks.length > 0) {
+      localStorage.setItem('admin_banks', JSON.stringify(banks));
+    }
+  }, [banks, isSupabaseConfigured]);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured && bankTransactions.length > 0) {
+      localStorage.setItem('admin_bank_transactions', JSON.stringify(bankTransactions));
+    }
+  }, [bankTransactions, isSupabaseConfigured]);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured && withdrawals.length > 0) {
+      localStorage.setItem('admin_withdrawals', JSON.stringify(withdrawals));
+    }
+  }, [withdrawals, isSupabaseConfigured]);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured && activities.length > 0) {
+      localStorage.setItem('admin_activities', JSON.stringify(activities));
+    }
+  }, [activities, isSupabaseConfigured]);
 
   // Helper functions for role-based access control
   const isAdmin = () => {
@@ -1010,28 +1390,46 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     return isAdmin();
   };
 
+  const getCurrentStaff = () => (user ? staff.find(s => s.id === user.id) : undefined);
+
   const canAccessStaffManagement = () => {
-    if (!user) return false;
-    // Allow Super Admin, Admin, and Manager to access staff management
-    return user.role === 'Super Admin' || user.role === 'Admin' || user.role === 'Manager';
+    const current = getCurrentStaff();
+    if (!current) return false;
+    // Admins always have access regardless of stored permissions
+    if (user?.role === 'Super Admin' || user?.role === 'Admin') return true;
+    // Otherwise use permission flag, fallback to role if permissions missing
+    return current.permissions?.staffManagement?.view ?? (user?.role === 'Manager');
   };
 
   const canAccessActivityLogs = () => {
-    if (!user) return false;
-    // Only allow Super Admin and Admin to access activity logs
-    return user.role === 'Super Admin' || user.role === 'Admin';
+    const current = getCurrentStaff();
+    if (!current) return false;
+    return current.permissions?.activityLogs?.view ?? (user?.role === 'Super Admin' || user?.role === 'Admin');
+  };
+
+  const canAccessDeposits = () => {
+    const current = getCurrentStaff();
+    if (!current) return false;
+    return current.permissions?.deposits?.view ?? true;
+  };
+
+  const canAccessBankDeposits = () => {
+    const current = getCurrentStaff();
+    if (!current) return false;
+    return current.permissions?.bankDeposits?.view ?? true;
   };
 
   const canViewDashboardExtras = () => {
-    // Allow admins and managers to see extended dashboard features
-    return user?.role === 'Super Admin' || user?.role === 'Admin' || user?.role === 'Manager';
+    const current = getCurrentStaff();
+    if (!current) return false;
+    // Tie extras to dashboard.view plus role for extras if you want stricter control
+    return !!(current.permissions?.dashboard?.view);
   };
 
   const canAccessDashboard = () => {
-    if (!user) return false;
-    const currentStaff = staff.find(s => s.id === user.id);
-    // Only Super Admin, Admin, and Manager can access dashboard
-    return user.role === 'Super Admin' || user.role === 'Admin' || user.role === 'Manager';
+    const current = getCurrentStaff();
+    if (!current) return false;
+    return !!(current.permissions?.dashboard?.view);
   };
 
   const getDefaultPageForUser = (): AdminPage => {
@@ -1076,6 +1474,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       type,
       details,
       timestamp: new Date(),
+      ipAddress: clientIp || undefined,
     };
     
     console.log('📢 Creating new activity:', newActivity);
@@ -1090,6 +1489,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
           user_id: user.id,
           type,
           details,
+          ip_address: clientIp || null,
         };
         console.log('🔍 Activity data being sent to API:', activityData);
         await ApiService.createActivity(activityData);
@@ -1330,6 +1730,8 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       getFilteredActivities,
       canAccessStaffManagement,
       canAccessActivityLogs,
+      canAccessDeposits,
+      canAccessBankDeposits,
       canViewDashboardExtras,
       canAccessDashboard,
       getDefaultPageForUser,

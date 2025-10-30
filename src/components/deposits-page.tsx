@@ -281,7 +281,7 @@ export function DepositsPage() {
               Add Deposit Entry
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="w-[80vw] max-w-[80vw] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingDeposit ? 'Edit' : 'Add'} Deposit Entry</DialogTitle>
               <DialogDescription>
@@ -543,7 +543,7 @@ export function DepositsPage() {
                   <TableHead>Local Deposit</TableHead>
                   <TableHead>USDT Deposit</TableHead>
                   <TableHead>Cash Deposit</TableHead>
-                  <TableHead>Total Deposit</TableHead>
+                  <TableHead>Total Balance</TableHead>
                   <TableHead>Client Incentives</TableHead>
                   <TableHead>Expenses</TableHead>
                   <TableHead>Submitted By</TableHead>

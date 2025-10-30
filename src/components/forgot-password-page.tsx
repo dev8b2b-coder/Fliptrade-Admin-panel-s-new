@@ -5,6 +5,7 @@ import { Label } from './ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { ArrowLeft, Mail } from 'lucide-react';
 import { useAdmin } from './admin-context';
+import ApiService from '../services/api';
 import Group1 from '../imports/Group1-47-1099';
 
 export function ForgotPasswordPage() {
@@ -16,13 +17,17 @@ export function ForgotPasswordPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      // Ask Supabase to send recovery email (uses your Supabase SMTP)
+      await ApiService.supabaseRecover(email, window.location.origin);
+      // Store for next step (OTP UI retained if you want to keep the flow uniform)
       setOtpData({ email, purpose: 'forgot-password' });
       setIsSubmitted(true);
+    } catch (err) {
+      console.error('Forgot password email failed:', err);
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   const handleContinue = () => {

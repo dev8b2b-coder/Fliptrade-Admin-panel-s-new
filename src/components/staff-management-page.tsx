@@ -21,7 +21,8 @@ import {
   Trash2,
   Filter,
   X,
-  UserX
+  UserX,
+  RefreshCw
 } from 'lucide-react';
 import { useAdmin, Staff, UserRole } from './admin-context';
 import { toast } from 'sonner';
@@ -54,7 +55,20 @@ import {
 } from './ui/tooltip';
 
 export function StaffManagementPage() {
-  const { staff, setStaff, setCurrentPage, user, canViewAllEntries, addActivity } = useAdmin();
+  const { staff, setStaff, setCurrentPage, user, canViewAllEntries, addActivity, refreshAllData, isLoading } = useAdmin();
+
+  // Debug logging for staff data
+  console.log('🔍 Staff Management Debug:', {
+    staffCount: staff.length,
+    staff: staff,
+    user: user,
+    isLoading: isLoading
+  });
+
+  // Refresh data when component mounts
+  React.useEffect(() => {
+    refreshAllData();
+  }, []);
 
   // Permission checks for current user
   const getCurrentUserPermissions = () => {
@@ -117,15 +131,17 @@ export function StaffManagementPage() {
     
     // Fallback to role-based check if permissions are not available
     if (!permissions) {
-      return user?.role === 'Super Admin' && staffMember.id !== user?.id;
+      return (user?.role === 'Super Admin' || user?.role === 'Admin') && staffMember.id !== user?.id;
     }
     
     // Users with delete permission can delete others, but not themselves
     return permissions.delete && staffMember.id !== user?.id;
   };
+
+  // State for filters and pagination
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
-  const [filterRole, setFilterRole] = useState<UserRole | 'all'>('all');
+  const [filterRole, setFilterRole] = useState<'all' | UserRole>('all');
   const [currentPage, setCurrentPageState] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [selectedMember, setSelectedMember] = useState<Staff | null>(null);
@@ -181,10 +197,8 @@ export function StaffManagementPage() {
       await ApiService.updateStaff(memberId, { status: newStatus });
       
       // Update local state
-      setStaff(staff.map(m => 
-        m.id === memberId 
-          ? { ...m, status: newStatus }
-          : m
+      setStaff(staff.map(s => 
+        s.id === memberId ? { ...s, status: newStatus } : s
       ));
       
       toast.success(`Staff member ${newStatus === 'active' ? 'activated' : 'deactivated'} successfully`);
@@ -193,7 +207,7 @@ export function StaffManagementPage() {
       await addActivity(
         `Staff member ${member.name} ${newStatus === 'active' ? 'activated' : 'deactivated'}`,
         'info',
-        `Staff ID: ${memberId}, Status: ${newStatus}`
+        `Staff ID: ${memberId}, Email: ${member.email}`
       );
       
     } catch (error) {
@@ -250,119 +264,76 @@ export function StaffManagementPage() {
   };
 
   const handleEditPermissions = (member: Staff) => {
-    setSelectedMember(member);
-    setEditingPermissions(JSON.parse(JSON.stringify(member.permissions))); // Deep copy
+    setEditingPermissions({ ...member });
     setEditPermissionsOpen(true);
   };
 
   const updateMemberPermissions = async () => {
-    if (selectedMember && editingPermissions) {
+    if (!editingPermissions) return;
+
       try {
-        // Update in database
-        await ApiService.updateStaff(selectedMember.id, {
-          permissions: editingPermissions
-        } as Partial<Staff>);
+        // Persist permissions to DB (staff_permissions)
+        await ApiService.upsertStaffPermissions(editingPermissions.id, editingPermissions.permissions);
+        // Update basic staff fields (excluding permissions)
+        await ApiService.updateStaff(editingPermissions.id, {
+          name: editingPermissions.name,
+          email: editingPermissions.email,
+          role: editingPermissions.role,
+          status: editingPermissions.status,
+          avatar: editingPermissions.avatar,
+        } as any);
         
         // Update local state
-      setStaff(staff.map(member => 
-        member.id === selectedMember.id 
-          ? { ...member, permissions: editingPermissions }
-          : member
+      setStaff(staff.map(s => 
+        s.id === editingPermissions.id ? editingPermissions : s
       ));
         
       setEditPermissionsOpen(false);
-      setSelectedMember(null);
-      setEditingPermissions(null);
       toast.success('Permissions updated successfully');
         
-        // Add activity
+      // Add activity log
         await addActivity(
-          'Staff permissions updated',
+        `Updated permissions for ${editingPermissions.name}`,
           'info',
-          `Updated permissions for staff member: ${selectedMember.name} (${selectedMember.email})`
+        `Staff ID: ${editingPermissions.id}`
         );
+      
       } catch (error) {
-        console.error('Error updating staff permissions:', error);
-        console.error('Error details:', error);
-        toast.error(`Failed to update permissions: ${error.message || 'Unknown error'}`);
-      }
+      console.error('Error updating permissions:', error);
+      toast.error('Failed to update permissions. Please try again.');
     }
-  };
-
-  const updatePermission = (module: string, permission: string, value: boolean) => {
-    if (editingPermissions) {
-      setEditingPermissions({
-        ...editingPermissions,
-        [module]: {
-          ...editingPermissions[module],
-          [permission]: value
-        }
-      });
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
-    return status === 'active' ? (
-      <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Active</Badge>
-    ) : (
-      <Badge variant="secondary" className="bg-red-100 text-red-800">Inactive</Badge>
-    );
   };
 
   const getRoleBadge = (role: UserRole) => {
-    const roleColors: Record<UserRole, string> = {
-      'Super Admin': 'bg-purple-600 hover:bg-purple-600',
-      'Admin': 'bg-[#6a40ec] hover:bg-[#6a40ec]',
-      'Manager': 'bg-blue-500 hover:bg-blue-500', 
-      'Accountant': 'bg-green-500 hover:bg-green-500',
-      'Viewer': 'bg-gray-500 hover:bg-gray-500',
+    const roleColors = {
+      'Super Admin': 'bg-red-100 text-red-800',
+      'Admin': 'bg-purple-100 text-purple-800',
+      'Manager': 'bg-blue-100 text-blue-800',
+      'Accountant': 'bg-green-100 text-green-800',
+      'Viewer': 'bg-gray-100 text-gray-800'
     };
     
     return (
-      <Badge className={`${roleColors[role]} text-white`}>
+      <Badge className={roleColors[role] || 'bg-gray-100 text-gray-800'}>
         {role}
+      </Badge>
+    );
+  };
+
+  const getStatusBadge = (status: 'active' | 'inactive') => {
+    return (
+      <Badge className={status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
+        {status}
       </Badge>
     );
   };
 
   const getPermissionsSummary = (member: Staff) => {
     const permissions: string[] = [];
-    
-    // Check if member has permissions
-    if (!member.permissions) {
-      return permissions;
-    }
-    
-    // Dashboard permissions
-    if (member.permissions.dashboard.view || member.permissions.dashboard.add || 
-        member.permissions.dashboard.edit || member.permissions.dashboard.delete) {
-      permissions.push('Dashboard');
-    }
-    
-    // Deposits permissions
-    if (member.permissions.deposits.view || member.permissions.deposits.add || 
-        member.permissions.deposits.edit || member.permissions.deposits.delete) {
-      permissions.push('Deposits');
-    }
-    
-    // Bank Deposits permissions
-    if (member.permissions.bankDeposits.view || member.permissions.bankDeposits.add || 
-        member.permissions.bankDeposits.edit || member.permissions.bankDeposits.delete) {
-      permissions.push('Banks');
-    }
-    
-    // Staff Management permissions
-    if (member.permissions.staffManagement.view || member.permissions.staffManagement.add || 
-        member.permissions.staffManagement.edit || member.permissions.staffManagement.delete) {
-      permissions.push('Staff');
-    }
-    
-    // Activity Logs permissions
-    if (member.permissions.activityLogs?.view || member.permissions.activityLogs?.add || 
-        member.permissions.activityLogs?.edit || member.permissions.activityLogs?.delete) {
-      permissions.push('Activity Logs');
-    }
-    
+    if (member.permissions.dashboard.view) permissions.push('Dashboard');
+    if (member.permissions.deposits.view) permissions.push('Deposits');
+    if (member.permissions.bankDeposits.view) permissions.push('Bank Deposits');
+    if (member.permissions.staffManagement.view) permissions.push('Staff Management');
     return permissions;
   };
 
@@ -374,10 +345,21 @@ export function StaffManagementPage() {
           <h1 className="text-3xl font-bold text-gray-900">Staff Management</h1>
           <p className="text-gray-600 mt-1">Manage your team members and their role-based permissions.</p>
         </div>
+        <div className="flex items-center gap-2 mt-4 sm:mt-0">
+          <Button
+            onClick={() => refreshAllData()}
+            variant="outline"
+            size="sm"
+            disabled={isLoading}
+            className="border border-gray-300 hover:border-gray-400 px-3 py-2"
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
         {canAddStaff() ? (
           <Button 
             onClick={() => setCurrentPage('add-staff')}
-            className="mt-4 sm:mt-0 bg-[#6a40ec] hover:bg-[#5a2fd9] text-white border border-[#6a40ec] px-3 py-2"
+              className="bg-[#6a40ec] hover:bg-[#5a2fd9] text-white border border-[#6a40ec] px-3 py-2"
           >
             <UserPlus className="w-4 h-4 mr-2" />
             Add Staff Member
@@ -388,26 +370,31 @@ export function StaffManagementPage() {
               <TooltipTrigger asChild>
                 <Button 
                   disabled
-                  className="mt-4 sm:mt-0 bg-gray-300 cursor-not-allowed border border-gray-300 px-3 py-2"
+                    className="bg-gray-300 text-gray-500 cursor-not-allowed px-3 py-2"
                 >
                   <UserPlus className="w-4 h-4 mr-2" />
                   Add Staff Member
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>You don't have permission to add staff members</TooltipContent>
+                <TooltipContent>
+                  <p>You don't have permission to add staff members</p>
+                </TooltipContent>
             </Tooltip>
           </TooltipProvider>
         )}
+        </div>
       </div>
 
-      {/* Search and Filters */}
+      {/* Filters */}
       <Card>
         <CardHeader>
-          <CardTitle>Search & Filters</CardTitle>
-          <CardDescription>Filter staff members by search term, status, and role</CardDescription>
+          <CardTitle className="flex items-center gap-2">
+            <Filter className="w-5 h-5" />
+            Filters
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
               <Input
@@ -417,6 +404,7 @@ export function StaffManagementPage() {
                 className="pl-10"
               />
             </div>
+            
             <div>
               <select
                 value={filterStatus}
@@ -464,13 +452,14 @@ export function StaffManagementPage() {
       {/* Staff Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Team Members ({filteredStaff.length})</CardTitle>
+          <CardTitle>Staff Members</CardTitle>
           <CardDescription>
-            Manage your team members and their role-based access permissions
+            Manage your team members and their permissions
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="rounded-md border">
+          <div className="space-y-4">
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -482,7 +471,35 @@ export function StaffManagementPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {paginatedStaff.map((member) => (
+                  {isLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-8">
+                        <div className="flex items-center justify-center">
+                          <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                          Loading staff data...
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : paginatedStaff.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-8 text-gray-500">
+                        {staff.length === 0 ? (
+                          <div>
+                            <UserX className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                            <p className="text-lg font-medium">No staff members found</p>
+                            <p className="text-sm">Add your first team member to get started.</p>
+                          </div>
+                        ) : (
+                          <div>
+                            <Search className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                            <p className="text-lg font-medium">No staff members match your filters</p>
+                            <p className="text-sm">Try adjusting your search or filter criteria.</p>
+                          </div>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    paginatedStaff.map((member) => (
                   <TableRow key={member.id}>
                     <TableCell>
                       <div className="flex items-center space-x-3">
@@ -530,7 +547,14 @@ export function StaffManagementPage() {
                       </div>
                     </TableCell>
                     <TableCell>
+                          <div className="flex items-center space-x-2">
+                            <Switch
+                              checked={member.status === 'active'}
+                              onCheckedChange={() => handleStatusToggle(member.id)}
+                              disabled={member.id === user?.id}
+                            />
                       {getStatusBadge(member.status)}
+                          </div>
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>
@@ -540,73 +564,33 @@ export function StaffManagementPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem 
-                            className="cursor-pointer"
-                            onClick={() => handleViewDetails(member)}
-                          >
+                              <DropdownMenuItem onClick={() => handleViewDetails(member)}>
                             <Eye className="mr-2 h-4 w-4" />
                             View Details
                           </DropdownMenuItem>
                           {canEditStaff(member) && (
-                            <DropdownMenuItem 
-                              className="cursor-pointer"
-                              onClick={() => handleEditPermissions(member)}
-                            >
+                                <DropdownMenuItem onClick={() => handleEditPermissions(member)}>
                               <Edit className="mr-2 h-4 w-4" />
                               Edit Permissions
                             </DropdownMenuItem>
                           )}
-                          {canEditStaff(member) && (
-                            <DropdownMenuItem 
-                              className="cursor-pointer"
-                              onClick={() => handleStatusToggle(member.id)}
-                            >
-                              <UserX className="mr-2 h-4 w-4" />
-                              {member.status === 'active' ? 'Deactivate' : 'Activate'}
-                            </DropdownMenuItem>
-                          )}
                           {canDeleteStaff(member) && (
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
                                 <DropdownMenuItem 
-                                  className="cursor-pointer text-red-600"
-                                  onSelect={(e) => e.preventDefault()}
+                                  onClick={() => handleDelete(member.id)}
+                                  className="text-red-600"
                                 >
                                   <Trash2 className="mr-2 h-4 w-4" />
-                                  Delete
+                                  Archive
                                 </DropdownMenuItem>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Delete Staff Member?</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    This will delete {member.name} and remove them from the system. You can restore them later if needed.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction 
-                                    onClick={() => handleDelete(member.id)}
-                                    className="bg-red-600 hover:bg-red-700"
-                                  >
-                                    Delete
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
                           )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
                   </TableRow>
-                ))}
+                    ))
+                  )}
               </TableBody>
             </Table>
-            {paginatedStaff.length === 0 && filteredStaff.length === 0 && (
-              <div className="text-center py-8">
-                <p className="text-gray-500">No staff members found matching your criteria.</p>
-              </div>
-            )}
           </div>
           
           {filteredStaff.length > 0 && (
@@ -621,10 +605,9 @@ export function StaffManagementPage() {
               }}
             />
           )}
+          </div>
         </CardContent>
       </Card>
-
-
 
       {/* View Details Modal */}
       <Dialog open={viewDetailsOpen} onOpenChange={setViewDetailsOpen}>
@@ -654,7 +637,7 @@ export function StaffManagementPage() {
                 </div>
               </div>
               
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <h4 className="font-medium text-gray-900">Account Information</h4>
                   <div className="mt-2 space-y-2 text-sm">
@@ -705,44 +688,330 @@ export function StaffManagementPage() {
           <DialogHeader>
             <DialogTitle>Edit Permissions</DialogTitle>
             <DialogDescription>
-              Modify {selectedMember?.name}'s access permissions
+              Update permissions for {editingPermissions?.name}
             </DialogDescription>
           </DialogHeader>
-          {selectedMember && editingPermissions && (
+          {editingPermissions && (
             <div className="space-y-6">
-              <div className="space-y-4">
-                <h4 className="font-medium">Module Permissions</h4>
-                <div className="text-sm text-gray-600 mb-4">
-                  Adjust the permissions for each module and action type.
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-3">Dashboard</h4>
+                  <div className="space-y-2">
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={editingPermissions.permissions.dashboard.view}
+                        onChange={(e) => setEditingPermissions({
+                          ...editingPermissions,
+                          permissions: {
+                            ...editingPermissions.permissions,
+                            dashboard: {
+                              ...editingPermissions.permissions.dashboard,
+                              view: e.target.checked
+                            }
+                          }
+                        })}
+                        className="rounded border-gray-300"
+                      />
+                      <span className="text-sm">View</span>
+                    </label>
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={editingPermissions.permissions.dashboard.add}
+                        onChange={(e) => setEditingPermissions({
+                          ...editingPermissions,
+                          permissions: {
+                            ...editingPermissions.permissions,
+                            dashboard: {
+                              ...editingPermissions.permissions.dashboard,
+                              add: e.target.checked
+                            }
+                          }
+                        })}
+                        className="rounded border-gray-300"
+                      />
+                      <span className="text-sm">Add</span>
+                    </label>
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={editingPermissions.permissions.dashboard.edit}
+                        onChange={(e) => setEditingPermissions({
+                          ...editingPermissions,
+                          permissions: {
+                            ...editingPermissions.permissions,
+                            dashboard: {
+                              ...editingPermissions.permissions.dashboard,
+                              edit: e.target.checked
+                            }
+                          }
+                        })}
+                        className="rounded border-gray-300"
+                      />
+                      <span className="text-sm">Edit</span>
+                    </label>
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={editingPermissions.permissions.dashboard.delete}
+                        onChange={(e) => setEditingPermissions({
+                          ...editingPermissions,
+                          permissions: {
+                            ...editingPermissions.permissions,
+                            dashboard: {
+                              ...editingPermissions.permissions.dashboard,
+                              delete: e.target.checked
+                            }
+                          }
+                        })}
+                        className="rounded border-gray-300"
+                      />
+                      <span className="text-sm">Delete</span>
+                    </label>
                 </div>
-                <div className="space-y-4">
-                  {Object.entries(editingPermissions).map(([module, permissions]) => (
-                    <div key={module} className="p-4 border rounded-lg">
-                      <div className="mb-3">
-                        <span className="font-medium capitalize text-lg">
-                          {module.replace(/([A-Z])/g, ' $1').trim()}
-                        </span>
                       </div>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        {Object.entries(permissions as Record<string, boolean>).map(([permission, value]) => (
-                          <div key={permission} className="flex items-center justify-between">
-                            <span className="text-sm font-medium capitalize">
-                              {permission}
-                            </span>
-                            <Switch
-                              checked={value}
-                              onCheckedChange={(checked) => updatePermission(module, permission, checked)}
-                            />
+                
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-3">Deposits</h4>
+                  <div className="space-y-2">
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={editingPermissions.permissions.deposits.view}
+                        onChange={(e) => setEditingPermissions({
+                          ...editingPermissions,
+                          permissions: {
+                            ...editingPermissions.permissions,
+                            deposits: {
+                              ...editingPermissions.permissions.deposits,
+                              view: e.target.checked
+                            }
+                          }
+                        })}
+                        className="rounded border-gray-300"
+                      />
+                      <span className="text-sm">View</span>
+                    </label>
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={editingPermissions.permissions.deposits.add}
+                        onChange={(e) => setEditingPermissions({
+                          ...editingPermissions,
+                          permissions: {
+                            ...editingPermissions.permissions,
+                            deposits: {
+                              ...editingPermissions.permissions.deposits,
+                              add: e.target.checked
+                            }
+                          }
+                        })}
+                        className="rounded border-gray-300"
+                      />
+                      <span className="text-sm">Add</span>
+                    </label>
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={editingPermissions.permissions.deposits.edit}
+                        onChange={(e) => setEditingPermissions({
+                          ...editingPermissions,
+                          permissions: {
+                            ...editingPermissions.permissions,
+                            deposits: {
+                              ...editingPermissions.permissions.deposits,
+                              edit: e.target.checked
+                            }
+                          }
+                        })}
+                        className="rounded border-gray-300"
+                      />
+                      <span className="text-sm">Edit</span>
+                    </label>
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={editingPermissions.permissions.deposits.delete}
+                        onChange={(e) => setEditingPermissions({
+                          ...editingPermissions,
+                          permissions: {
+                            ...editingPermissions.permissions,
+                            deposits: {
+                              ...editingPermissions.permissions.deposits,
+                              delete: e.target.checked
+                            }
+                          }
+                        })}
+                        className="rounded border-gray-300"
+                      />
+                      <span className="text-sm">Delete</span>
+                    </label>
                           </div>
-                        ))}
                       </div>
+                
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-3">Bank Deposits</h4>
+                  <div className="space-y-2">
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={editingPermissions.permissions.bankDeposits.view}
+                        onChange={(e) => setEditingPermissions({
+                          ...editingPermissions,
+                          permissions: {
+                            ...editingPermissions.permissions,
+                            bankDeposits: {
+                              ...editingPermissions.permissions.bankDeposits,
+                              view: e.target.checked
+                            }
+                          }
+                        })}
+                        className="rounded border-gray-300"
+                      />
+                      <span className="text-sm">View</span>
+                    </label>
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={editingPermissions.permissions.bankDeposits.add}
+                        onChange={(e) => setEditingPermissions({
+                          ...editingPermissions,
+                          permissions: {
+                            ...editingPermissions.permissions,
+                            bankDeposits: {
+                              ...editingPermissions.permissions.bankDeposits,
+                              add: e.target.checked
+                            }
+                          }
+                        })}
+                        className="rounded border-gray-300"
+                      />
+                      <span className="text-sm">Add</span>
+                    </label>
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={editingPermissions.permissions.bankDeposits.edit}
+                        onChange={(e) => setEditingPermissions({
+                          ...editingPermissions,
+                          permissions: {
+                            ...editingPermissions.permissions,
+                            bankDeposits: {
+                              ...editingPermissions.permissions.bankDeposits,
+                              edit: e.target.checked
+                            }
+                          }
+                        })}
+                        className="rounded border-gray-300"
+                      />
+                      <span className="text-sm">Edit</span>
+                    </label>
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={editingPermissions.permissions.bankDeposits.delete}
+                        onChange={(e) => setEditingPermissions({
+                          ...editingPermissions,
+                          permissions: {
+                            ...editingPermissions.permissions,
+                            bankDeposits: {
+                              ...editingPermissions.permissions.bankDeposits,
+                              delete: e.target.checked
+                            }
+                          }
+                        })}
+                        className="rounded border-gray-300"
+                      />
+                      <span className="text-sm">Delete</span>
+                    </label>
                     </div>
-                  ))}
+                </div>
+                
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-3">Staff Management</h4>
+                  <div className="space-y-2">
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={editingPermissions.permissions.staffManagement.view}
+                        onChange={(e) => setEditingPermissions({
+                          ...editingPermissions,
+                          permissions: {
+                            ...editingPermissions.permissions,
+                            staffManagement: {
+                              ...editingPermissions.permissions.staffManagement,
+                              view: e.target.checked
+                            }
+                          }
+                        })}
+                        className="rounded border-gray-300"
+                      />
+                      <span className="text-sm">View</span>
+                    </label>
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={editingPermissions.permissions.staffManagement.add}
+                        onChange={(e) => setEditingPermissions({
+                          ...editingPermissions,
+                          permissions: {
+                            ...editingPermissions.permissions,
+                            staffManagement: {
+                              ...editingPermissions.permissions.staffManagement,
+                              add: e.target.checked
+                            }
+                          }
+                        })}
+                        className="rounded border-gray-300"
+                      />
+                      <span className="text-sm">Add</span>
+                    </label>
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={editingPermissions.permissions.staffManagement.edit}
+                        onChange={(e) => setEditingPermissions({
+                          ...editingPermissions,
+                          permissions: {
+                            ...editingPermissions.permissions,
+                            staffManagement: {
+                              ...editingPermissions.permissions.staffManagement,
+                              edit: e.target.checked
+                            }
+                          }
+                        })}
+                        className="rounded border-gray-300"
+                      />
+                      <span className="text-sm">Edit</span>
+                    </label>
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={editingPermissions.permissions.staffManagement.delete}
+                        onChange={(e) => setEditingPermissions({
+                          ...editingPermissions,
+                          permissions: {
+                            ...editingPermissions.permissions,
+                            staffManagement: {
+                              ...editingPermissions.permissions.staffManagement,
+                              delete: e.target.checked
+                            }
+                          }
+                        })}
+                        className="rounded border-gray-300"
+                      />
+                      <span className="text-sm">Delete</span>
+                    </label>
+                  </div>
                 </div>
               </div>
               
-              <div className="flex justify-end space-x-3">
-                <Button variant="outline" onClick={() => setEditPermissionsOpen(false)}>
+              <div className="flex justify-end space-x-2">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setEditPermissionsOpen(false)}
+                >
                   Cancel
                 </Button>
                 <Button 

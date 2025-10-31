@@ -177,14 +177,23 @@ app.post('/api/staff/permissions', async (req, res) => {
       return res.status(500).json({ success: false, message: 'Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY' });
     }
 
-    const allowedModules = new Set(['dashboard', 'deposits', 'bankDeposits', 'staffManagement', 'activityLogs']);
+    const moduleNameMap = {
+      dashboard: 'dashboard',
+      deposits: 'deposits',
+      bankDeposits: 'bankDeposits',
+      staffManagement: 'staffManagement',
+      activityLogs: 'activityLogs',
+      banks: 'bankDeposits',
+      staff: 'staffManagement',
+      activities: 'activityLogs',
+    };
 
     const sanitized = permissions
-      .filter((perm) => perm && allowedModules.has(perm.module))
+      .filter((perm) => perm && moduleNameMap[perm.module])
       .map((perm) => ({
         id: perm.id || perm.permission_id || perm.permissionId || crypto.randomUUID(),
         staff_id: perm.staff_id,
-        module: perm.module,
+        module: moduleNameMap[perm.module],
         can_view: !!perm.can_view,
         can_add: !!perm.can_add,
         can_edit: !!perm.can_edit,

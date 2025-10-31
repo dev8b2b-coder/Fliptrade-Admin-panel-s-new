@@ -194,14 +194,18 @@ export function StaffManagementPage() {
       const newStatus = member.status === 'active' ? 'inactive' : 'active';
       
       // Update in database
-      await ApiService.updateStaff(memberId, { status: newStatus });
+      const updatedMember = await ApiService.updateStaff(memberId, { status: newStatus });
       
       // Update local state
       setStaff(staff.map(s => 
-        s.id === memberId ? { ...s, status: newStatus } : s
+        s.id === memberId ? { ...s, status: updatedMember?.status ?? newStatus } : s
       ));
       
       toast.success(`Staff member ${newStatus === 'active' ? 'activated' : 'deactivated'} successfully`);
+
+      if (newStatus === 'inactive') {
+        toast.info('The staff member has been logged out of all active sessions.');
+      }
       
       // Add activity log
       await addActivity(
@@ -209,6 +213,9 @@ export function StaffManagementPage() {
         'info',
         `Staff ID: ${memberId}, Email: ${member.email}`
       );
+
+      // Refresh to sync with database state (ensures toggle persists on reload)
+      await refreshAllData();
       
     } catch (error) {
       console.error('Error updating staff status:', error);
@@ -340,7 +347,7 @@ export function StaffManagementPage() {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-center  justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Staff Management</h1>
           <p className="text-gray-600 mt-1">Manage your team members and their role-based permissions.</p>
@@ -394,7 +401,7 @@ export function StaffManagementPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-4 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
               <Input

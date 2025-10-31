@@ -286,6 +286,25 @@ export class ApiService {
       throw new Error('Staff member not found');
     }
     
+    // If status change requested, delegate to secure server endpoint using service role key
+    if (updates.status !== undefined) {
+      const res = await fetch(`${this.emailApiBase}/api/staff/update-status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ staffId: id, status: updates.status }),
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        console.error('API Error - Staff status update via server failed:', res.status, text);
+        throw new Error(`Staff status update failed: ${res.status} ${text}`);
+      }
+
+      const result = await res.json();
+      console.log('API: Staff status updated via admin API:', result);
+      return result?.data ?? { id, ...updates } as Staff;
+    }
+
     // Sanitize and map fields to match DB schema (snake_case, valid columns only)
     const payload: Record<string, any> = {};
     if (updates.name !== undefined) payload.name = updates.name;

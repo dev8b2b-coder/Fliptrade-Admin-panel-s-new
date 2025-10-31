@@ -26,6 +26,10 @@ const supa = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 );
 
+if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  console.warn('⚠️  Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY. Admin routes will fail.');
+}
+
 // Test email connection
 transporter.verify((error, success) => {
   if (error) {
@@ -113,6 +117,48 @@ app.post('/api/supabase/invite', async (req, res) => {
     res.json({ success: true, data });
   } catch (error) {
     console.error('❌ Supabase invite error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Update staff status (active/inactive) and optionally invalidate sessions
+app.post('/api/staff/update-status', async (req, res) => {
+  try {
+    const { staffId, status } = req.body;
+
+    if (!staffId || !status || !['active', 'inactive'].includes(status)) {
+      return res.status(400).json({ success: false, message: 'Invalid staffId or status' });
+    }
+
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return res.status(500).json({ success: false, message: 'Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY' });
+    }
+
+    const { data, error } = await supa
+      .from('staff')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('id', staffId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('❌ Error updating staff status in database:', error);
+      return res.status(500).json({ success: false, message: error.message });
+    }
+
+    let sessionResult = null;
+    if (status === 'inactive') {
+      try {
+        sessionResult = await supa.auth.admin.invalidateUserSessions(staffId);
+        console.log('✅ Invalidated user sessions for staff:', staffId);
+      } catch (sessionError) {
+        console.error('⚠️ Failed to invalidate user sessions:', sessionError);
+      }
+    }
+
+    res.json({ success: true, data, sessionResult });
+  } catch (error) {
+    console.error('❌ Error in staff status endpoint:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });

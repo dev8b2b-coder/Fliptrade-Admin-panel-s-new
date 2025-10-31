@@ -413,48 +413,55 @@ export function DashboardPage() {
       </div>
 
       {/* Financial Stats Grid - 7 Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {stats.map((stat) => {
-          const Icon = stat.icon;
-          return (
-            <Card key={stat.title} className="group relative overflow-hidden hover:shadow-2xl hover:scale-[1.02] transition-all duration-500 bg-gradient-to-br from-white via-purple-50/40 to-[#6a40ec]/15 border border-purple-200/60 hover:border-[#6a40ec]/30 backdrop-blur-sm">
-              <div className="absolute inset-0 bg-gradient-to-br from-transparent via-white/20 to-[#6a40ec]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-              <CardHeader className="relative flex flex-row items-start justify-between space-y-0 pb-2 pt-4 px-4">
-                <div className="flex-1">
-                  <CardTitle className="text-xs font-semibold text-gray-700 leading-tight tracking-wide uppercase">
-                    {stat.title}
-                  </CardTitle>
-                </div>
-                <div className="flex-shrink-0 p-2 bg-gradient-to-br from-[#6a40ec]/15 via-[#6a40ec]/20 to-[#6a40ec]/25 rounded-lg shadow-sm border border-[#6a40ec]/20 group-hover:shadow-md group-hover:scale-110 transition-all duration-300">
-                  <Icon className="h-4 w-4 text-[#6a40ec] drop-shadow-sm" />
-                </div>
-              </CardHeader>
-              <CardContent className="relative px-4 pb-4 pt-1">
-                <div className="space-y-2">
-                  <div className="text-2xl font-bold text-gray-900 tracking-tight leading-none">
-                    {stat.value}
+      <div className="overflow-x-auto">
+        <div className="flex min-w-max gap-4 pb-1">
+          {stats.map((stat) => {
+            const Icon = stat.icon;
+            return (
+              <Card
+                key={stat.title}
+                className="group relative min-w-[260px] overflow-hidden border border-purple-200/60 bg-gradient-to-br from-white via-purple-50/40 to-[#6a40ec]/15 transition-all duration-500 hover:scale-[1.02] hover:border-[#6a40ec]/30 hover:shadow-2xl"
+              >
+                <div className="absolute inset-0 bg-gradient-to-br from-transparent via-white/20 to-[#6a40ec]/5 opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+                <CardHeader className="relative flex flex-row items-start justify-between space-y-0 px-4 pt-4 pb-2">
+                  <div className="flex-1">
+                    <CardTitle className="text-xs font-semibold uppercase leading-tight tracking-wide text-gray-700">
+                      {stat.title}
+                    </CardTitle>
                   </div>
-                  <div className="flex items-center justify-start">
-                    <div className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold tracking-wide transition-colors ${
-                      stat.changeType === 'positive' 
-                        ? 'bg-green-100 text-green-700 border border-green-200' :
-                      stat.changeType === 'negative' 
-                        ? 'bg-red-100 text-red-700 border border-red-200' : 
-                        'bg-gray-100 text-gray-700 border border-gray-200'
-                    }`}>
-                      {stat.change}
+                  <div className="flex-shrink-0 rounded-lg border border-[#6a40ec]/20 bg-gradient-to-br from-[#6a40ec]/15 via-[#6a40ec]/20 to-[#6a40ec]/25 p-2 shadow-sm transition-all duration-300 group-hover:scale-110 group-hover:shadow-md">
+                    <Icon className="h-4 w-4 text-[#6a40ec] drop-shadow-sm" />
+                  </div>
+                </CardHeader>
+                <CardContent className="relative px-4 pb-4 pt-1">
+                  <div className="space-y-2">
+                    <div className="text-2xl font-bold leading-none tracking-tight text-gray-900">
+                      {stat.value}
+                    </div>
+                    <div className="flex items-center justify-start">
+                      <div
+                        className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold tracking-wide transition-colors ${
+                          stat.changeType === 'positive'
+                            ? 'border-green-200 bg-green-100 text-green-700'
+                            : stat.changeType === 'negative'
+                            ? 'border-red-200 bg-red-100 text-red-700'
+                            : 'border-gray-200 bg-gray-100 text-gray-700'
+                        }`}
+                      >
+                        {stat.change}
+                      </div>
+                    </div>
+                    <div className="pt-0.5">
+                      <p className="text-xs font-medium leading-relaxed text-gray-600">
+                        {stat.description}
+                      </p>
                     </div>
                   </div>
-                  <div className="pt-0.5">
-                    <p className="text-xs text-gray-600 leading-relaxed font-medium">
-                      {stat.description}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
       </div>
 
       {/* Staff Summary Card - Show for all users */}

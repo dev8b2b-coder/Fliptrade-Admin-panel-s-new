@@ -3,7 +3,6 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { Checkbox } from './ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Textarea } from './ui/textarea';
 import { Switch } from './ui/switch';
@@ -47,13 +46,7 @@ export function AddStaffPage() {
     email: '',
     role: '' as UserRole | '',
     temporaryPassword: '',
-    permissions: {
-      dashboard: { view: false, add: false, edit: false, delete: false },
-      deposits: { view: false, add: false, edit: false, delete: false },
-      bankDeposits: { view: false, add: false, edit: false, delete: false },
-      staffManagement: { view: false, add: false, edit: false, delete: false },
-      activityLogs: { view: false, add: false, edit: false, delete: false },
-    } as UserPermissions,
+    permissions: { ...DEFAULT_PERMISSIONS } as UserPermissions,
     sendEmail: false,
     emailMessage: 'You\'ve been invited to join our team. Use this temporary password to sign in: <temporary-password>. You will be prompted to create a new password when you first log in.',
   });
@@ -63,21 +56,7 @@ export function AddStaffPage() {
     setFormData(prev => ({
       ...prev,
       role,
-      // Don't automatically set permissions - let user set them manually
-      // permissions: defaultPermissions[role],
-    }));
-  };
-
-  const handlePermissionChange = (module: keyof UserPermissions, action: keyof ModulePermission, value: boolean) => {
-    setFormData(prev => ({
-      ...prev,
-      permissions: {
-        ...prev.permissions,
-        [module]: {
-          ...prev.permissions[module],
-          [action]: value,
-        },
-      },
+      permissions: { ...DEFAULT_PERMISSIONS },
     }));
   };
 
@@ -329,56 +308,25 @@ export function AddStaffPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {/* Load Default Permissions Button */}
-            <div className="mb-4">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  if (formData.role) {
-                    setFormData(prev => ({
-                      ...prev,
-                      permissions: defaultPermissions[formData.role]
-                    }));
-                    toast.success(`Default permissions loaded for ${formData.role} role`);
-                  }
-                }}
-                disabled={!formData.role}
-                className="text-sm"
-              >
-                Load Default Permissions for {formData.role || 'Selected Role'}
-              </Button>
-              <p className="text-xs text-gray-500 mt-1">
-                Click to load default permissions for the selected role, or customize manually below
+            <div className="space-y-3 text-sm text-gray-600">
+              <p>
+                New staff members always start with the default permissions below. You can adjust them later from
+                the Staff Management &rarr; Edit screen.
               </p>
-            </div>
-            <div className="space-y-6">
-              {Object.entries(formData.permissions).map(([module, perms]) => (
-                <div key={module} className="border rounded-lg p-4">
-                  <h4 className="font-medium capitalize mb-3">{module.replace(/([A-Z])/g, ' $1').trim()}</h4>
-                  <div className="grid grid-cols-4 gap-3">
-                    {Object.entries(perms as Record<string, boolean>).map(([action, enabled]) => (
-                      <div key={action} className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`${module}-${action}`}
-                          checked={enabled}
-                          onCheckedChange={(checked) => 
-                            handlePermissionChange(
-                              module as keyof UserPermissions, 
-                              action as keyof ModulePermission, 
-                              !!checked
-                            )
-                          }
-                        />
-                        <Label htmlFor={`${module}-${action}`} className="text-sm capitalize">
-                          {action}
-                        </Label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
+              <ul className="space-y-2 border rounded-lg p-4 bg-gray-50 text-gray-700">
+                <li className="flex items-center gap-2">
+                  <span className="font-medium">Deposits:</span>
+                  <span>View + Add enabled, Edit/Delete disabled</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="font-medium">Bank Deposits:</span>
+                  <span>View + Add enabled, Edit/Delete disabled</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="font-medium">Other modules:</span>
+                  <span>All permissions disabled by default</span>
+                </li>
+              </ul>
             </div>
           </CardContent>
         </Card>

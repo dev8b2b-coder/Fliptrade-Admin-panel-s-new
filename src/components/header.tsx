@@ -31,8 +31,8 @@ export function Header() {
   };
 
   return (
-    <header className="bg-white border-b border-gray-200 px-6 py-4">
-      <div className="flex items-center justify-between">
+    <header className="bg-white border-b border-gray-200 px-4 py-4">
+      <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-2">
         {/* Left side - Logo */}
         <div className="flex items-center">
           <div className="w-6 h-6 flex items-center justify-center">

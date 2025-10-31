@@ -706,6 +706,8 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     }
   }, [user]);
 
+  const [staff, setStaff] = useState<Staff[]>([]);
+
   // Force logout if current user becomes inactive
   useEffect(() => {
     if (!user) return;
@@ -719,8 +721,6 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem('admin_is_authenticated');
     }
   }, [staff, user, isAuthenticated]);
-
-  const [staff, setStaff] = useState<Staff[]>([]);
   const [deposits, setDeposits] = useState<DepositEntry[]>([]);
   const [banks, setBanks] = useState<Bank[]>([]);
   const [bankTransactions, setBankTransactions] = useState<BankTransaction[]>([]);

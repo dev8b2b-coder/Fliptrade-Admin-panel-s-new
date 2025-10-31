@@ -147,9 +147,14 @@ export function AddStaffPage() {
           console.log('✅ Staff permissions created successfully');
         } catch (permissionError) {
           console.error('❌ Error creating staff permissions:', permissionError);
-          // If permissions fail, we should still show success for staff creation
-          // but log the permission error
-          toast.error('Staff created but permissions setup failed. Please edit permissions manually.');
+          try {
+            console.log('⚠️ Applying fallback default permissions...');
+            await ApiService.applyDefaultPermissions(staffData.id);
+            toast.success('Default permissions applied (view/add for Bank Deposits & Deposits).');
+          } catch (fallbackError) {
+            console.error('❌ Fallback default permissions failed:', fallbackError);
+            toast.error('Staff created but permissions setup failed. Please edit permissions manually.');
+          }
         }
 
         // Add to local state for immediate UI update

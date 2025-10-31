@@ -213,6 +213,57 @@ app.post('/api/staff/permissions', async (req, res) => {
   }
 });
 
+// Fallback: ensure default permissions exist when creation step fails
+app.post('/api/staff/permissions/defaults', async (req, res) => {
+  try {
+    const { staffId } = req.body;
+
+    if (!staffId) {
+      return res.status(400).json({ success: false, message: 'staffId is required' });
+    }
+
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return res.status(500).json({ success: false, message: 'Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY' });
+    }
+
+    const defaults = [
+      {
+        id: crypto.randomUUID(),
+        staff_id: staffId,
+        module: 'bankDeposits',
+        can_view: true,
+        can_add: true,
+        can_edit: false,
+        can_delete: false,
+      },
+      {
+        id: crypto.randomUUID(),
+        staff_id: staffId,
+        module: 'deposits',
+        can_view: true,
+        can_add: true,
+        can_edit: false,
+        can_delete: false,
+      },
+    ];
+
+    const { data, error } = await supa
+      .from('staff_permissions')
+      .upsert(defaults, { onConflict: 'staff_id,module', ignoreDuplicates: false })
+      .select();
+
+    if (error) {
+      console.error('❌ Error applying default permissions:', error);
+      return res.status(500).json({ success: false, message: error.message });
+    }
+
+    res.json({ success: true, data });
+  } catch (error) {
+    console.error('❌ Exception in default permissions endpoint:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // Supabase: Send password recovery email
 app.post('/api/supabase/recover', async (req, res) => {
   try {

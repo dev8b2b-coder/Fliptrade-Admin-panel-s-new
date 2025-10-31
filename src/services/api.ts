@@ -420,6 +420,24 @@ export class ApiService {
     return result?.data || [];
   }
 
+  static async applyDefaultPermissions(staffId: string): Promise<void> {
+    console.log('API: Applying default permissions via server for staff:', staffId);
+
+    const res = await fetch(`${this.emailApiBase}/api/staff/permissions/defaults`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ staffId }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      console.error('API Error - Apply default permissions via server:', res.status, text);
+      throw new Error(`Default permissions failed: ${res.status} ${text}`);
+    }
+
+    console.log('API: Default permissions applied successfully');
+  }
+
   static async upsertStaffPermissions(staffId: string, perms: {
     dashboard?: { view: boolean; add: boolean; edit: boolean; delete: boolean };
     deposits?: { view: boolean; add: boolean; edit: boolean; delete: boolean };

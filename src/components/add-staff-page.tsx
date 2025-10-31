@@ -52,7 +52,7 @@ const defaultPermissions: Record<UserRole, UserPermissions> = {
 };
 
 export function AddStaffPage() {
-  const { setCurrentPage, staff, setStaff, addActivity } = useAdmin();
+  const { setCurrentPage, staff, setStaff, addActivity, refreshAllData } = useAdmin();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -126,9 +126,10 @@ export function AddStaffPage() {
           bankDeposits: 'bankDeposits',
           staffManagement: 'staffManagement',
           activityLogs: 'activityLogs',
+          banks: 'bankDeposits',
+          staff: 'staffManagement',
+          activities: 'activityLogs',
         };
-
-        const allowedModules = new Set(Object.values(moduleNameMap));
 
         const permissionsToInsert = Object.entries(formData.permissions)
           .map(([module, perms]) => ({
@@ -139,22 +140,16 @@ export function AddStaffPage() {
             can_edit: (perms as ModulePermission).edit,
             can_delete: (perms as ModulePermission).delete,
           }))
-          .filter(permission => allowedModules.has(permission.module));
+          .filter(permission => !!moduleNameMap[permission.module] || ['dashboard','deposits','bankDeposits','staffManagement','activityLogs'].includes(permission.module));
 
         console.log('🔍 Permissions to insert:', permissionsToInsert);
         try {
           await ApiService.createStaffPermissions(permissionsToInsert);
           console.log('✅ Staff permissions created successfully');
+          toast.success('Permissions saved successfully');
         } catch (permissionError) {
           console.error('❌ Error creating staff permissions:', permissionError);
-          try {
-            console.log('⚠️ Applying fallback default permissions...');
-            await ApiService.applyDefaultPermissions(staffData.id);
-            toast.success('Default permissions applied (view/add for Bank Deposits & Deposits).');
-          } catch (fallbackError) {
-            console.error('❌ Fallback default permissions failed:', fallbackError);
-            toast.error('Staff created but permissions setup failed. Please edit permissions manually.');
-          }
+          toast.error(`Permissions save failed: ${permissionError instanceof Error ? permissionError.message : 'Unknown error'}`);
         }
 
         // Add to local state for immediate UI update
@@ -169,6 +164,11 @@ export function AddStaffPage() {
         };
 
         setStaff([...staff, newStaff]);
+        try {
+          await refreshAllData();
+        } catch (refreshError) {
+          console.warn('⚠️ Unable to refresh data after staff creation:', refreshError);
+        }
 
         if (formData.sendEmail) {
           try {

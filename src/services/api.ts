@@ -401,24 +401,23 @@ export class ApiService {
   }
 
   static async createStaffPermissions(permissions: Omit<StaffPermission, 'id'>[]): Promise<StaffPermission[]> {
-    console.log('API: Creating staff permissions:', permissions);
-    const permissionsWithIds = permissions.map(p => ({
-      ...p,
-      id: crypto.randomUUID(),
-    }));
+    console.log('API: Creating staff permissions via server:', permissions);
 
-    const { data, error } = await supabase
-      .from('staff_permissions')
-      .insert(permissionsWithIds)
-      .select();
+    const res = await fetch(`${this.emailApiBase}/api/staff/permissions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ permissions }),
+    });
 
-    if (error) {
-      console.error('API Error - Create Staff Permissions:', error);
-      throw new Error(error.message);
+    if (!res.ok) {
+      const text = await res.text();
+      console.error('API Error - Create Staff Permissions via server:', res.status, text);
+      throw new Error(`Permissions setup failed: ${res.status} ${text}`);
     }
 
-    console.log('API: Staff permissions created successfully:', data?.length || 0, 'records');
-    return data || [];
+    const result = await res.json();
+    console.log('API: Staff permissions created via server successfully:', result?.data?.length || 0, 'records');
+    return result?.data || [];
   }
 
   static async upsertStaffPermissions(staffId: string, perms: {

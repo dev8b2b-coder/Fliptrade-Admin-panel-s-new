@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import ApiService from '../services/api';
+import { toast } from 'sonner@2.0.3';
 
 export type AdminPage = 
   | 'login' 
@@ -704,6 +705,20 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       fetchActivities();
     }
   }, [user]);
+
+  // Force logout if current user becomes inactive
+  useEffect(() => {
+    if (!user) return;
+    const current = staff.find((s) => s.id === user.id);
+    if (current && current.status !== 'active' && isAuthenticated) {
+      toast.error('Your account has been deactivated by an administrator.');
+      setIsAuthenticated(false);
+      setUser(null);
+      setCurrentPage('login');
+      localStorage.removeItem('admin_user');
+      localStorage.removeItem('admin_is_authenticated');
+    }
+  }, [staff, user, isAuthenticated]);
 
   const [staff, setStaff] = useState<Staff[]>([]);
   const [deposits, setDeposits] = useState<DepositEntry[]>([]);

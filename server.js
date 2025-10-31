@@ -163,6 +163,55 @@ app.post('/api/staff/update-status', async (req, res) => {
   }
 });
 
+// Create or update staff permissions using service role
+app.post('/api/staff/permissions', async (req, res) => {
+  try {
+    const { permissions } = req.body;
+
+    if (!Array.isArray(permissions) || permissions.length === 0) {
+      return res.status(400).json({ success: false, message: 'Permissions payload is required' });
+    }
+
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return res.status(500).json({ success: false, message: 'Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY' });
+    }
+
+    const allowedModules = new Set(['dashboard', 'deposits', 'bankDeposits', 'staffManagement', 'activityLogs']);
+
+    const sanitized = permissions
+      .filter((perm) => perm && allowedModules.has(perm.module))
+      .map((perm) => ({
+        id: perm.id || perm.permission_id || undefined,
+        staff_id: perm.staff_id,
+        module: perm.module,
+        can_view: !!perm.can_view,
+        can_add: !!perm.can_add,
+        can_edit: !!perm.can_edit,
+        can_delete: !!perm.can_delete,
+        updated_at: new Date().toISOString(),
+      }));
+
+    if (sanitized.length === 0) {
+      return res.status(400).json({ success: false, message: 'No valid permissions provided' });
+    }
+
+    const { data, error } = await supa
+      .from('staff_permissions')
+      .upsert(sanitized, { onConflict: 'staff_id,module', ignoreDuplicates: false })
+      .select();
+
+    if (error) {
+      console.error('❌ Error creating staff permissions:', error);
+      return res.status(500).json({ success: false, message: error.message });
+    }
+
+    res.json({ success: true, data });
+  } catch (error) {
+    console.error('❌ Exception in staff permissions endpoint:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // Supabase: Send password recovery email
 app.post('/api/supabase/recover', async (req, res) => {
   try {

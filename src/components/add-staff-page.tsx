@@ -120,29 +120,26 @@ export function AddStaffPage() {
         });
 
         // Create staff permissions using API service
-        const moduleNameMap: Record<string, string> = {
-          dashboard: 'dashboard',
-          deposits: 'deposits',
-          bankDeposits: 'bankDeposits',
-          staffManagement: 'staffManagement',
-          activityLogs: 'activityLogs',
-          banks: 'bankDeposits',
-          staff: 'staffManagement',
-          activities: 'activityLogs',
-        };
-
-        const permissionsToInsert = Object.entries(formData.permissions)
-          .map(([module, perms]) => ({
+        const permissionsToInsert = [
+          {
             staff_id: staffData.id,
-            module: moduleNameMap[module] || module,
-            can_view: (perms as ModulePermission).view,
-            can_add: (perms as ModulePermission).add,
-            can_edit: (perms as ModulePermission).edit,
-            can_delete: (perms as ModulePermission).delete,
-          }))
-          .filter(permission => !!moduleNameMap[permission.module] || ['dashboard','deposits','bankDeposits','staffManagement','activityLogs'].includes(permission.module));
+            module: 'deposits',
+            can_view: true,
+            can_add: true,
+            can_edit: true,
+            can_delete: false,
+          },
+          {
+            staff_id: staffData.id,
+            module: 'bankDeposits',
+            can_view: true,
+            can_add: true,
+            can_edit: true,
+            can_delete: false,
+          },
+        ];
 
-        console.log('🔍 Permissions to insert:', permissionsToInsert);
+        console.log('🔍 Permissions to insert (defaults):', permissionsToInsert);
         try {
           await ApiService.createStaffPermissions(permissionsToInsert);
           console.log('✅ Staff permissions created successfully');
@@ -158,7 +155,13 @@ export function AddStaffPage() {
           name: formData.name,
           email: formData.email,
           role: formData.role as UserRole,
-          permissions: formData.permissions,
+          permissions: {
+            dashboard: { view: false, add: false, edit: false, delete: false },
+            deposits: { view: true, add: true, edit: true, delete: false },
+            bankDeposits: { view: true, add: true, edit: true, delete: false },
+            staffManagement: { view: false, add: false, edit: false, delete: false },
+            activityLogs: { view: false, add: false, edit: false, delete: false },
+          },
           status: 'active',
           createdAt: new Date().toISOString().split('T')[0],
         };
@@ -207,7 +210,13 @@ export function AddStaffPage() {
           name: formData.name,
           email: formData.email,
           role: formData.role as UserRole,
-          permissions: formData.permissions,
+          permissions: {
+            dashboard: { view: false, add: false, edit: false, delete: false },
+            deposits: { view: true, add: true, edit: true, delete: false },
+            bankDeposits: { view: true, add: true, edit: true, delete: false },
+            staffManagement: { view: false, add: false, edit: false, delete: false },
+            activityLogs: { view: false, add: false, edit: false, delete: false },
+          },
           status: 'active',
           createdAt: new Date().toISOString().split('T')[0],
           password_hash: formData.temporaryPassword,

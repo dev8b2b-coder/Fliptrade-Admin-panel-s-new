@@ -181,7 +181,7 @@ app.post('/api/staff/permissions', async (req, res) => {
     const sanitized = permissions
       .filter((perm) => perm && allowedModules.has(perm.module))
       .map((perm) => ({
-        id: perm.id || perm.permission_id || undefined,
+        id: perm.id || perm.permission_id || perm.permissionId || crypto.randomUUID(),
         staff_id: perm.staff_id,
         module: perm.module,
         can_view: !!perm.can_view,

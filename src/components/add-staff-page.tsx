@@ -13,43 +13,32 @@ import { toast } from 'sonner';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import ApiService from '../services/api';
 
-const defaultPermissions: Record<UserRole, UserPermissions> = {
-  'Super Admin': {
-    dashboard: { view: true, add: false, edit: false, delete: false },
-    deposits: { view: true, add: true, edit: true, delete: true },
-    bankDeposits: { view: true, add: true, edit: true, delete: true },
-    staffManagement: { view: true, add: true, edit: true, delete: true },
-    activityLogs: { view: true, add: true, edit: true, delete: true },
-  },
-  'Admin': {
-    dashboard: { view: true, add: false, edit: false, delete: false },
-    deposits: { view: true, add: true, edit: true, delete: false },
-    bankDeposits: { view: true, add: true, edit: false, delete: false },
-    staffManagement: { view: true, add: true, edit: true, delete: false },
-    activityLogs: { view: true, add: true, edit: true, delete: false },
-  },
-  'Manager': {
-    dashboard: { view: true, add: false, edit: false, delete: false },
-    deposits: { view: true, add: true, edit: true, delete: false },
-    bankDeposits: { view: true, add: true, edit: false, delete: false },
-    staffManagement: { view: true, add: true, edit: true, delete: false },
-    activityLogs: { view: false, add: false, edit: false, delete: false },
-  },
-  'Accountant': {
-    dashboard: { view: true, add: false, edit: false, delete: false },
-    deposits: { view: true, add: true, edit: true, delete: false },
-    bankDeposits: { view: true, add: true, edit: true, delete: false },
-    staffManagement: { view: false, add: false, edit: false, delete: false },
-    activityLogs: { view: false, add: false, edit: false, delete: false },
-  },
-  'Viewer': {
-    dashboard: { view: true, add: false, edit: false, delete: false },
-    deposits: { view: true, add: false, edit: false, delete: false },
-    bankDeposits: { view: true, add: false, edit: false, delete: false },
-    staffManagement: { view: false, add: false, edit: false, delete: false },
-    activityLogs: { view: false, add: false, edit: false, delete: false },
-  },
+const DEFAULT_PERMISSIONS: UserPermissions = {
+  dashboard: { view: false, add: false, edit: false, delete: false },
+  deposits: { view: true, add: true, edit: false, delete: false },
+  bankDeposits: { view: true, add: true, edit: false, delete: false },
+  staffManagement: { view: false, add: false, edit: false, delete: false },
+  activityLogs: { view: false, add: false, edit: false, delete: false },
 };
+
+const buildDefaultPermissionRows = (staffId: string) => [
+  {
+    staff_id: staffId,
+    module: 'deposits',
+    can_view: true,
+    can_add: true,
+    can_edit: false,
+    can_delete: false,
+  },
+  {
+    staff_id: staffId,
+    module: 'bankDeposits',
+    can_view: true,
+    can_add: true,
+    can_edit: false,
+    can_delete: false,
+  },
+];
 
 export function AddStaffPage() {
   const { setCurrentPage, staff, setStaff, addActivity, refreshAllData } = useAdmin();
@@ -120,24 +109,7 @@ export function AddStaffPage() {
         });
 
         // Create staff permissions using API service
-        const permissionsToInsert = [
-          {
-            staff_id: staffData.id,
-            module: 'deposits',
-            can_view: true,
-            can_add: true,
-            can_edit: true,
-            can_delete: false,
-          },
-          {
-            staff_id: staffData.id,
-            module: 'bankDeposits',
-            can_view: true,
-            can_add: true,
-            can_edit: true,
-            can_delete: false,
-          },
-        ];
+        const permissionsToInsert = buildDefaultPermissionRows(staffData.id);
 
         console.log('🔍 Permissions to insert (defaults):', permissionsToInsert);
         try {
@@ -155,13 +127,7 @@ export function AddStaffPage() {
           name: formData.name,
           email: formData.email,
           role: formData.role as UserRole,
-          permissions: {
-            dashboard: { view: false, add: false, edit: false, delete: false },
-            deposits: { view: true, add: true, edit: true, delete: false },
-            bankDeposits: { view: true, add: true, edit: true, delete: false },
-            staffManagement: { view: false, add: false, edit: false, delete: false },
-            activityLogs: { view: false, add: false, edit: false, delete: false },
-          },
+          permissions: { ...DEFAULT_PERMISSIONS },
           status: 'active',
           createdAt: new Date().toISOString().split('T')[0],
         };
@@ -210,13 +176,7 @@ export function AddStaffPage() {
           name: formData.name,
           email: formData.email,
           role: formData.role as UserRole,
-          permissions: {
-            dashboard: { view: false, add: false, edit: false, delete: false },
-            deposits: { view: true, add: true, edit: true, delete: false },
-            bankDeposits: { view: true, add: true, edit: true, delete: false },
-            staffManagement: { view: false, add: false, edit: false, delete: false },
-            activityLogs: { view: false, add: false, edit: false, delete: false },
-          },
+          permissions: { ...DEFAULT_PERMISSIONS },
           status: 'active',
           createdAt: new Date().toISOString().split('T')[0],
           password_hash: formData.temporaryPassword,

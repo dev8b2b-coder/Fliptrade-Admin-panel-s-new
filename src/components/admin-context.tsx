@@ -209,11 +209,11 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     return null;
   });
   
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     const savedAuth = localStorage.getItem('admin_is_authenticated');
     const savedUser = localStorage.getItem('admin_user');
     // Only set authenticated to true if we have both auth flag and user data
-    const isAuth = savedAuth === 'true' && savedUser;
+    const isAuth = savedAuth === 'true' && !!savedUser;
     console.log('🔍 Authentication state:', { savedAuth, hasUser: !!savedUser, isAuth });
     return isAuth;
   });

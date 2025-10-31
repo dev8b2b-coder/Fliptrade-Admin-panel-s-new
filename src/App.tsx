@@ -18,7 +18,7 @@ import { Sidebar } from './components/sidebar';
 import { Toaster } from './components/ui/sonner';
 
 function AppContent() {
-  const { currentPage, isAuthenticated, canAccessStaffManagement, canAccessActivityLogs, canAccessDashboard, setCurrentPage, user } = useAdmin();
+  const { currentPage, isAuthenticated, canAccessStaffManagement, canAccessActivityLogs, canAccessDashboard, setCurrentPage, isLoading } = useAdmin();
 
   // Show authentication pages
   if (!isAuthenticated) {
@@ -49,7 +49,14 @@ function AppContent() {
         <Sidebar />
         <main className="flex-1 overflow-auto">
           {currentPage === 'dashboard' && (
-            canAccessDashboard() ? (
+            isLoading ? (
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center space-y-2">
+                  <div className="h-10 w-10 mx-auto border-4 border-[#6a40ec] border-t-transparent rounded-full animate-spin" />
+                  <p className="text-gray-600">Loading dashboard…</p>
+                </div>
+              </div>
+            ) : canAccessDashboard() ? (
               <DashboardPage />
             ) : (
               <div className="p-6">

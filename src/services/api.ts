@@ -161,7 +161,7 @@ export class ApiService {
           last_login: s.lastLogin,
           is_archived: s.isArchived || false,
           archived_at: s.archivedAt,
-        })).filter((s: any) => s.status === 'active');
+        }));
       }
       return [];
     }
@@ -169,7 +169,6 @@ export class ApiService {
     const { data, error } = await supabase
       .from('staff')
       .select('*')
-      .eq('status', 'active')
       .order('created_at', { ascending: false });
 
     if (error) {

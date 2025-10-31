@@ -126,14 +126,14 @@ export function Sidebar() {
               Logout
             </Button>
           </AlertDialogTrigger>
-          <AlertDialogContent>
+          <AlertDialogContent className="max-w-[30%] max-h-[90vh] overflow-y-auto">
             <AlertDialogHeader>
               <AlertDialogTitle>Are you sure you want to logout?</AlertDialogTitle>
               <AlertDialogDescription>
                 You will be redirected to the login page and need to sign in again to access your account.
               </AlertDialogDescription>
             </AlertDialogHeader>
-            <AlertDialogFooter>
+            <AlertDialogFooter className="flex justify-center gap-2">
               <AlertDialogCancel>
                 <X className="w-4 h-4 mr-2" />
                 Cancel

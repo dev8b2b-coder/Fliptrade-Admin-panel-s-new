@@ -528,7 +528,7 @@ export function BankDepositsPage() {
                 Add Bank
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-w-[40%] max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Add New Bank</DialogTitle>
                 <DialogDescription>
@@ -537,7 +537,7 @@ export function BankDepositsPage() {
               </DialogHeader>
               <form onSubmit={handleAddBank} className="space-y-4">
                 <div>
-                  <Label htmlFor="bankName">Bank Name</Label>
+                  <Label htmlFor="bankName" className="mb-2">Bank Name</Label>
                   <Input
                     id="bankName"
                     placeholder="Enter bank name"
@@ -570,7 +570,7 @@ export function BankDepositsPage() {
                 Add Transaction
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-w-[50%] max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Add Bank Transaction</DialogTitle>
                 <DialogDescription>
@@ -776,7 +776,7 @@ export function BankDepositsPage() {
           <CardDescription>Filter bank transactions by search term, date, and bank</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-3 md:grid-cols-4 gap-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
               <Input
@@ -942,15 +942,15 @@ export function BankDepositsPage() {
 
       {/* Edit Transaction Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-lg bg-white border border-purple-200/60 shadow-xl">
+        <DialogContent className="max-w-[60%] bg-white border border-purple-200/60 shadow-xl">
           <DialogHeader className="space-y-3">
             <DialogTitle className="text-xl font-bold text-gray-900 flex items-center">
-              <div className="w-8 h-8 bg-gradient-to-br from-[#6a40ec]/20 to-[#6a40ec]/30 rounded-lg flex items-center justify-center mr-3">
+              <div className="w-8 h-8 bg-gradient-to-br from-[#6a40ec]/20 to-[#6a40ec]/30 rounded-lg flex items-center  mr-3">
                 <Building2 className="w-4 h-4 text-[#6a40ec]" />
               </div>
               Edit Bank Transaction
             </DialogTitle>
-            <DialogDescription className="text-gray-600">
+            <DialogDescription className="text-gray-600 text-left">
               Update the bank transaction details below.
             </DialogDescription>
           </DialogHeader>

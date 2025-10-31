@@ -333,7 +333,7 @@ export function AddStaffPage() {
       </div>
 
       {/* Email Notification */}
-      <Card>
+      {/* <Card>
         <CardHeader>
           <CardTitle className="flex items-center">
             <Mail className="w-5 h-5 mr-2 text-[#6a40ec]" />
@@ -369,7 +369,7 @@ export function AddStaffPage() {
             </div>
           )}
         </CardContent>
-      </Card>
+      </Card> */}
 
       {/* Action Buttons */}
       <div className="flex justify-end space-x-4">

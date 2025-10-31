@@ -618,7 +618,7 @@ export function StaffManagementPage() {
 
       {/* View Details Modal */}
       <Dialog open={viewDetailsOpen} onOpenChange={setViewDetailsOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-[60%] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Staff Member Details</DialogTitle>
             <DialogDescription>
@@ -691,7 +691,7 @@ export function StaffManagementPage() {
 
       {/* Edit Permissions Modal */}
       <Dialog open={editPermissionsOpen} onOpenChange={setEditPermissionsOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-[60%] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Permissions</DialogTitle>
             <DialogDescription>

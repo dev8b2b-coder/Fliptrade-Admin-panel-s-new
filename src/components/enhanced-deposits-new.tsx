@@ -836,7 +836,7 @@ export function EnhancedDepositsNew() {
                         Add New Entry
                       </Button>
                     </DialogTrigger>
-                  <DialogContent className="max-w-[98vw] max-h-[90vh] overflow-y-auto">
+                  <DialogContent className="max-w-[60%] max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>{editingDeposit ? 'Edit' : 'Add New'} Deposit Entry</DialogTitle>
                     <DialogDescription>
@@ -845,7 +845,7 @@ export function EnhancedDepositsNew() {
                   </DialogHeader>
                   <form onSubmit={handleSubmit} className="space-y-6">
                     {/* Basic Information */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-3 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="date">Date <span className="text-red-500">*</span></Label>
                         <Input
@@ -877,10 +877,7 @@ export function EnhancedDepositsNew() {
                           </Select>
                         </div>
                       )}
-                    </div>
-
-                    {/* Deposit Amounts */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          
                       <div className="space-y-2">
                         <Label htmlFor="localDeposit">Local Deposit ($)</Label>
                         <Input
@@ -913,11 +910,7 @@ export function EnhancedDepositsNew() {
                           value={formData.cashDeposit}
                           onChange={(e) => setFormData({ ...formData, cashDeposit: e.target.value })}
                         />
-                      </div>
-                    </div>
-
-                    {/* Withdraw Amounts */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      </div> 
                       <div className="space-y-2">
                         <Label htmlFor="localWithdraw">Local Withdraw ($)</Label>
                         <Input
@@ -985,7 +978,7 @@ export function EnhancedDepositsNew() {
                                 <MinusCircle className="w-4 h-4" />
                               </Button>
                             )}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-2 md:grid-cols-2 gap-4">
                               <div className="space-y-2">
                                 <Label className="text-sm font-medium">
                                   Client Name <span className="text-red-500">*</span>
@@ -1057,7 +1050,7 @@ export function EnhancedDepositsNew() {
                               </Button>
                             )}
                             <div className="space-y-4">
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div className="grid grid-cols-2 md:grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                   <Label className="text-sm font-medium">
                                     Expense Type <span className="text-red-500">*</span>
@@ -1149,7 +1142,7 @@ export function EnhancedDepositsNew() {
         {(() => {
           const metrics = calculateDashboardMetrics(filteredDeposits);
           return (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-4 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <Card className="group relative overflow-hidden hover:shadow-2xl hover:scale-[1.02] transition-all duration-500 bg-gradient-to-br from-white via-green-50/40 to-green-100/15 border border-green-200/60 hover:border-green-400/30 backdrop-blur-sm">
                 <div className="absolute inset-0 bg-gradient-to-br from-transparent via-white/20 to-green-400/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                 <CardHeader className="relative flex flex-row items-start justify-between space-y-0 pb-2 pt-4 px-4">
@@ -1264,7 +1257,7 @@ export function EnhancedDepositsNew() {
         {/* Filters */}
         <Card>
           <CardContent className="pt-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-6 gap-4 mb-4">
+            <div className="grid grid-cols-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-6 gap-4 mb-4">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                 <Input

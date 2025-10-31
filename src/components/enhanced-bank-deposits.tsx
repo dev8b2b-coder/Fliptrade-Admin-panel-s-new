@@ -1538,7 +1538,7 @@ export function EnhancedBankDeposits() {
       {/* Dashboard Cards */}
       {(() => {
         return (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-4 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <Card className="group relative overflow-hidden hover:shadow-2xl hover:scale-[1.02] transition-all duration-500 bg-gradient-to-br from-white via-green-50/40 to-green-100/15 border border-green-200/60 hover:border-green-400/30 backdrop-blur-sm">
               <div className="absolute inset-0 bg-gradient-to-br from-transparent via-white/20 to-green-400/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
               <CardHeader className="relative flex flex-row items-start justify-between space-y-0 pb-2 pt-4 px-4">

@@ -205,9 +205,14 @@ app.post('/api/staff/permissions', async (req, res) => {
       return res.status(400).json({ success: false, message: 'No valid permissions provided' });
     }
 
+    const normalized = sanitized.map((perm) => ({
+      ...perm,
+      module: moduleNameMap[perm.module] || perm.module,
+    }));
+
     const { data, error } = await supa
       .from('staff_permissions')
-      .upsert(sanitized, { onConflict: 'staff_id,module', ignoreDuplicates: false })
+      .upsert(normalized, { onConflict: 'staff_id,module', ignoreDuplicates: false })
       .select();
 
     if (error) {

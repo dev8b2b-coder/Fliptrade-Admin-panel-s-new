@@ -121,21 +121,25 @@ export function AddStaffPage() {
 
         // Create staff permissions using API service
         const moduleNameMap: Record<string, string> = {
-          'dashboard': 'dashboard',
-          'deposits': 'deposits',
-          'bankDeposits': 'banks',
-          'staffManagement': 'staff',
-          'activityLogs': 'activities'
+          dashboard: 'dashboard',
+          deposits: 'deposits',
+          bankDeposits: 'bankDeposits',
+          staffManagement: 'staffManagement',
+          activityLogs: 'activityLogs',
         };
 
-        const permissionsToInsert = Object.entries(formData.permissions).map(([module, perms]) => ({
-          staff_id: staffData.id,
-          module: moduleNameMap[module] || module,
-          can_view: (perms as ModulePermission).view,
-          can_add: (perms as ModulePermission).add,
-          can_edit: (perms as ModulePermission).edit,
-          can_delete: (perms as ModulePermission).delete,
-        }));
+        const allowedModules = new Set(Object.values(moduleNameMap));
+
+        const permissionsToInsert = Object.entries(formData.permissions)
+          .map(([module, perms]) => ({
+            staff_id: staffData.id,
+            module: moduleNameMap[module] || module,
+            can_view: (perms as ModulePermission).view,
+            can_add: (perms as ModulePermission).add,
+            can_edit: (perms as ModulePermission).edit,
+            can_delete: (perms as ModulePermission).delete,
+          }))
+          .filter(permission => allowedModules.has(permission.module));
 
         console.log('🔍 Permissions to insert:', permissionsToInsert);
         try {
@@ -256,7 +260,7 @@ export function AddStaffPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-2 gap-6">
         {/* Basic Information */}
         <Card>
           <CardHeader>
@@ -379,7 +383,7 @@ export function AddStaffPage() {
               {Object.entries(formData.permissions).map(([module, perms]) => (
                 <div key={module} className="border rounded-lg p-4">
                   <h4 className="font-medium capitalize mb-3">{module.replace(/([A-Z])/g, ' $1').trim()}</h4>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-4 gap-3">
                     {Object.entries(perms as Record<string, boolean>).map(([action, enabled]) => (
                       <div key={action} className="flex items-center space-x-2">
                         <Checkbox

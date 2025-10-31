@@ -3,6 +3,7 @@ const express = require('express');
 const nodemailer = require('nodemailer');
 const { createClient } = require('@supabase/supabase-js');
 const cors = require('cors');
+const crypto = require('crypto');
 require('dotenv').config();
 
 const app = express();
